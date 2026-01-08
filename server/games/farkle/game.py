@@ -667,22 +667,10 @@ class FarkleGame(Game):
             self.schedule_sound(COMBO_SOUNDS[combo_type], delay_ticks=2)
 
         # Announce what was taken
-        user = self.get_user(player)
-        if user:
-            user.speak_l(
-                "farkle-you-take-combo", combo=combo_name, points=points
-            )
-        # Tell others
-        for other in self.players:
-            if other != player:
-                other_user = self.get_user(other)
-                if other_user:
-                    other_user.speak_l(
-                        "farkle-takes-combo",
-                        player=player.name,
-                        combo=combo_name,
-                        points=points,
-                    )
+        self.broadcast_personal_l(
+            player, "farkle-you-take-combo", "farkle-takes-combo",
+            combo=combo_name, points=points
+        )
 
         # Check for hot dice
         if len(farkle_player.banked_dice) == 6 and len(farkle_player.current_roll) == 0:
@@ -772,6 +760,9 @@ class FarkleGame(Game):
         # Add turn score to permanent score
         farkle_player.score += farkle_player.turn_score
 
+        # Sync to TeamManager for score actions
+        self._team_manager.add_to_team_score(player.name, farkle_player.turn_score)
+
         self.play_sound(f"game_farkle/bank{random.randint(1, 3)}.ogg")
 
         self.broadcast_l(
@@ -819,6 +810,10 @@ class FarkleGame(Game):
         # Initialize turn order
         active_players = self.get_active_players()
         self.set_turn_players(active_players)
+
+        # Set up TeamManager for score tracking (individual mode)
+        self._team_manager.team_mode = "individual"
+        self._team_manager.setup_teams([p.name for p in active_players])
 
         # Reset all player state
         for p in active_players:

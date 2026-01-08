@@ -33,16 +33,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-# Initialize localization before importing games
-from .messages.localization import Localization
-
+# Allow running as standalone script (uv run cli.py)
 _MODULE_DIR = Path(__file__).parent
+if __name__ == "__main__":
+    sys.path.insert(0, str(_MODULE_DIR.parent))
+
+# Initialize localization before importing games
+from server.messages.localization import Localization  # noqa: E402
+
 Localization.init(_MODULE_DIR / "locales")
 
-from .games.registry import GameRegistry, get_game_class  # noqa: E402
-from .games.base import Game, BOT_NAMES  # noqa: E402
-from .users.base import User, generate_uuid  # noqa: E402
-from .users.bot import Bot  # noqa: E402
+from server.games.registry import GameRegistry, get_game_class  # noqa: E402
+from server.games.base import Game, BOT_NAMES  # noqa: E402
+from server.users.base import User, generate_uuid  # noqa: E402
+from server.users.bot import Bot  # noqa: E402
 
 
 @dataclass

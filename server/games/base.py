@@ -128,6 +128,8 @@ class Game(ABC, DataClassJSONMixin):
     sound_scheduler_tick: int = 0  # Current tick counter
     # Action sets (serialized - actions are pure data now)
     player_action_sets: dict[str, list[ActionSet]] = field(default_factory=dict)
+    # Team manager (serialized for persistence)
+    _team_manager: TeamManager = field(default_factory=TeamManager)
 
     def __post_init__(self):
         """Initialize non-serialized state."""
@@ -282,14 +284,9 @@ class Game(ABC, DataClassJSONMixin):
         self.turn_index = self.turn_player_ids.index(player.id)
 
     @property
-    def team_manager(self) -> TeamManager | None:
-        """
-        Get the team manager for this game.
-
-        Subclasses should override this to return their team_manager instance.
-        Returns None by default (no team-based scoring).
-        """
-        return None
+    def team_manager(self) -> TeamManager:
+        """Get the team manager for this game."""
+        return self._team_manager
 
     # Action Set System
 
@@ -695,6 +692,38 @@ class Game(ABC, DataClassJSONMixin):
             if user:
                 user.speak_l(message_id, buffer, **kwargs)
 
+    def broadcast_personal_l(
+        self,
+        player: Player,
+        personal_message_id: str,
+        others_message_id: str,
+        buffer: str = "misc",
+        **kwargs,
+    ) -> None:
+        """
+        Send a personalized message to one player and a different message to everyone else.
+
+        The player receives personal_message_id, while all other players receive
+        others_message_id with an additional player=player.name argument.
+
+        Args:
+            player: The player who gets the personal message.
+            personal_message_id: Message ID for the player (e.g., "you-rolled").
+            others_message_id: Message ID for everyone else (e.g., "player-rolled").
+            buffer: Audio buffer for speech.
+            **kwargs: Additional arguments passed to all speak_l calls.
+        """
+        user = self.get_user(player)
+        if user:
+            user.speak_l(personal_message_id, buffer, **kwargs)
+
+        for p in self.players:
+            if p is player:
+                continue
+            u = self.get_user(p)
+            if u:
+                u.speak_l(others_message_id, buffer, player=player.name, **kwargs)
+
     def label_l(self, message_id: str) -> Callable[["Game", "Player"], str]:
         """
         Create a localized label callable for use in action definitions.
@@ -755,6 +784,8 @@ class Game(ABC, DataClassJSONMixin):
         """Rebuild the turn menu for a player."""
         if self._destroyed:
             return  # Don't rebuild menus after game is destroyed
+        if self.status == "finished":
+            return  # Don't rebuild turn menu after game has ended
         user = self.get_user(player)
         if not user:
             return
@@ -782,6 +813,8 @@ class Game(ABC, DataClassJSONMixin):
     ) -> None:
         """Update the turn menu for a player, preserving focus position."""
         if self._destroyed:
+            return
+        if self.status == "finished":
             return
         user = self.get_user(player)
         if not user:
@@ -1255,11 +1288,11 @@ class Game(ABC, DataClassJSONMixin):
 
         is_playing = self.status == "playing"
 
-        # Status actions: available during play if team_manager exists
-        has_team_manager = self.team_manager is not None
+        # Status actions: available during play if teams have been set up
+        has_teams = len(self.team_manager.teams) > 0
         if is_playing:
             standard_set.enable("whose_turn")
-            if has_team_manager:
+            if has_teams:
                 standard_set.enable("check_scores", "check_scores_detailed")
             else:
                 standard_set.disable("check_scores", "check_scores_detailed")
@@ -1430,9 +1463,8 @@ class Game(ABC, DataClassJSONMixin):
         if not user:
             return
 
-        tm = self.team_manager
-        if tm:
-            user.speak(tm.format_scores_brief(user.locale))
+        if self.team_manager.teams:
+            user.speak(self.team_manager.format_scores_brief(user.locale))
         else:
             user.speak_l("no-scores-available")
 
@@ -1442,9 +1474,8 @@ class Game(ABC, DataClassJSONMixin):
         if not user:
             return
 
-        tm = self.team_manager
-        if tm:
-            lines = tm.format_scores_detailed(user.locale)
+        if self.team_manager.teams:
+            lines = self.team_manager.format_scores_detailed(user.locale)
             self.status_box(player, lines)
         else:
             self.status_box(player, ["No scores available."])

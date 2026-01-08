@@ -264,11 +264,8 @@ class ThreesGame(Game):
 
         # Announce roll
         dice_str = player.dice.format_values_only()
-        user = self.get_user(player)
-        if user:
-            user.speak_l("threes-you-rolled", dice=dice_str)
-        self.broadcast_l(
-            "threes-player-rolled", exclude=player, player=player.name, dice=dice_str
+        self.broadcast_personal_l(
+            player, "threes-you-rolled", "threes-player-rolled", dice=dice_str
         )
 
         # Check if auto-score needed (all locked or only 1 unlocked)
@@ -360,19 +357,14 @@ class ThreesGame(Game):
         six_count = player.dice.count_value(6)
 
         # Check for shooting the moon (5 sixes)
-        user = self.get_user(player)
         if six_count == 5:
             score = -30
             self.play_sound("game_pig/win.ogg")
-            if user:
-                user.speak_l("threes-you-shot-moon")
-            self.broadcast_l("threes-shot-moon", exclude=player, player=player.name)
+            self.broadcast_personal_l(player, "threes-you-shot-moon", "threes-shot-moon")
         else:
             self.play_sound("game_pig/bank.ogg")
-            if user:
-                user.speak_l("threes-you-scored", score=score)
-            self.broadcast_l(
-                "threes-scored", exclude=player, player=player.name, score=score
+            self.broadcast_personal_l(
+                player, "threes-you-scored", "threes-scored", score=score
             )
 
         player.turn_score = score

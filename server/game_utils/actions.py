@@ -88,6 +88,12 @@ class ActionSet(DataClassJSONMixin):
         if action_id in self._order:
             self._order.remove(action_id)
 
+    def remove_by_prefix(self, prefix: str) -> None:
+        """Remove all actions whose ID starts with the given prefix."""
+        to_remove = [aid for aid in self._actions if aid.startswith(prefix)]
+        for aid in to_remove:
+            self.remove(aid)
+
     def enable(self, *action_ids: str) -> None:
         """Enable actions (make executable)."""
         for aid in action_ids:

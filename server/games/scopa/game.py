@@ -37,10 +37,6 @@ class ScopaPlayer(Player):
 
     hand: list[Card] = field(default_factory=list)
     captured: list[Card] = field(default_factory=list)
-    scopas: int = 0
-    round_score: int = 0
-    total_score: int = 0
-    team_index: int = 0
 
 
 @dataclass
@@ -161,22 +157,11 @@ class ScopaGame(Game):
     # Game state
     deck: Deck = field(default_factory=Deck)
     table_cards: list[Card] = field(default_factory=list)
-    last_capture_player: str | None = None
+    last_capture_player_id: str | None = None  # Player ID of last capturer
     dealer_index: int = 0
     current_round: int = 0
     _current_deal: int = 0  # Current deal number in round
     _total_deals: int = 0  # Total deals in round
-
-    # Team management (serialized)
-    _team_manager: TeamManager = field(default_factory=TeamManager)
-
-    @property
-    def team_manager(self) -> TeamManager:
-        """Get the team manager."""
-        return self._team_manager
-
-    # Card lookup (rebuilt on load)
-    _card_lookup: dict[int, Card] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize runtime state."""
@@ -357,9 +342,7 @@ class ScopaGame(Game):
         self.update_standard_actions(player)
 
         # Remove old card actions
-        for action_id in list(turn_set._actions.keys()):
-            if action_id.startswith("play_card_"):
-                turn_set.remove(action_id)
+        turn_set.remove_by_prefix("play_card_")
 
         # Add card actions for current player
         if is_playing and is_current and not is_spectator:
@@ -395,24 +378,17 @@ class ScopaGame(Game):
         self.current_round = 0
 
         # Setup teams
-        self._team_manager = TeamManager(team_mode=self.options.team_mode)
         active_players = self.get_active_players()
         player_names = [p.name for p in active_players]
-        self.team_manager.setup_teams(player_names)
+        self._team_manager.team_mode = self.options.team_mode
+        self._team_manager.setup_teams(player_names)
 
         # Initialize turn order
         self.set_turn_players(active_players)
 
-        # Assign team indices to players
-        for player in self.players:
-            player.team_index = self.team_manager.get_team_index(player.name)
-
-        # Reset scores
+        # Reset player state
         for player in active_players:
             player.captured = []
-            player.scopas = 0
-            player.round_score = 0
-            player.total_score = 0
             player.hand = []
 
         self.team_manager.reset_all_scores()
@@ -450,9 +426,7 @@ class ScopaGame(Game):
 
     def _create_deck(self) -> None:
         """Create and shuffle the deck."""
-        self.deck, self._card_lookup = DeckFactory.italian_deck(
-            self.options.number_of_decks
-        )
+        self.deck, _ = DeckFactory.italian_deck(self.options.number_of_decks)
         # Play shuffle sound
         shuffle_sound = random.choice(["shuffle1.ogg", "shuffle2.ogg", "shuffle3.ogg"])
         self.play_sound(f"game_cards/{shuffle_sound}")
@@ -460,12 +434,11 @@ class ScopaGame(Game):
     def _start_round(self) -> None:
         """Start a new round."""
         self.current_round += 1
-        self.last_capture_player = None
+        self.last_capture_player_id = None
 
         # Reset player state for round
         for player in self.get_active_players():
             player.captured = []
-            player.scopas = 0
             player.hand = []
 
         self.team_manager.reset_round_scores()
@@ -483,10 +456,7 @@ class ScopaGame(Game):
 
         # Announce dealer
         if dealer:
-            dealer_user = self.get_user(dealer)
-            if dealer_user:
-                dealer_user.speak_l("game-you-deal")
-            self.broadcast_l("game-player-deals", player=dealer.name, exclude=dealer)
+            self.broadcast_personal_l(dealer, "game-you-deal", "game-player-deals")
 
         # Create and shuffle deck
         self._create_deck()
@@ -619,7 +589,7 @@ class ScopaGame(Game):
         # Add to player's captured pile
         player.captured.append(played_card)
         player.captured.extend(captured)
-        self.last_capture_player = player.name
+        self.last_capture_player_id = player.id
 
         # Play capture sound with pitch based on cards captured
         num_captured = len(captured)
@@ -637,7 +607,6 @@ class ScopaGame(Game):
         suffix_key = None
         if is_scopa:
             if self.options.scopa_mechanic != "no_scopas":
-                player.scopas += 1
                 suffix_key = "scopa-scopa-suffix"
                 # Award point to team
                 self.team_manager.add_to_team_score(player.name, 1)
@@ -710,13 +679,12 @@ class ScopaGame(Game):
     def _end_round(self) -> None:
         """Handle end of a round."""
         # Give remaining table cards to last capturer
-        if self.table_cards and self.last_capture_player:
-            self.broadcast_l("scopa-remaining-cards", player=self.last_capture_player)
-            for player in self.players:
-                if player.name == self.last_capture_player:
-                    player.captured.extend(self.table_cards)
-                    self.table_cards = []
-                    break
+        if self.table_cards and self.last_capture_player_id:
+            last_capturer = self.get_player_by_id(self.last_capture_player_id)
+            if last_capturer:
+                self.broadcast_l("scopa-remaining-cards", player=last_capturer.name)
+                last_capturer.captured.extend(self.table_cards)
+                self.table_cards = []
 
         self.broadcast_l("game-round-end", round=self.current_round)
 

@@ -114,7 +114,7 @@ class TestMileByMilePlayTest:
         game.on_start()
 
         # Verify teams are set up
-        assert len(game.teams) == 2
+        assert game.get_num_teams() == 2
 
         max_ticks = 40000
         for _ in range(max_ticks):

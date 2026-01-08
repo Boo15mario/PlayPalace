@@ -218,6 +218,12 @@ class Database:
         cursor.execute("DELETE FROM tables WHERE table_id = ?", (table_id,))
         self._conn.commit()
 
+    def delete_all_tables(self) -> None:
+        """Delete all tables from the database."""
+        cursor = self._conn.cursor()
+        cursor.execute("DELETE FROM tables")
+        self._conn.commit()
+
     def save_all_tables(self, tables: list[Table]) -> None:
         """Save multiple tables."""
         for table in tables:

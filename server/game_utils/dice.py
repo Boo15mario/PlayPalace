@@ -68,16 +68,18 @@ class DiceSet(DataClassJSONMixin):
         self.kept = []
         self.locked = []
 
-    def roll(self, lock_kept: bool = True) -> list[int]:
+    def roll(self, lock_kept: bool = True, clear_kept: bool = True) -> list[int]:
         """
         Roll the dice.
 
         If dice haven't been rolled yet, rolls all dice.
-        Otherwise, locks kept dice and rerolls unlocked ones.
+        Otherwise, respects kept/locked dice and rerolls the rest.
 
         Args:
             lock_kept: If True, kept dice become locked before rolling.
-                      Set False for games where you can unkeep.
+                      Set False for games where you can unkeep after rolling.
+            clear_kept: If True, clears kept list after rolling.
+                       Set False to preserve kept state.
 
         Returns:
             List of all dice values after rolling.
@@ -92,13 +94,14 @@ class DiceSet(DataClassJSONMixin):
                     if i not in self.locked:
                         self.locked.append(i)
 
-            # Roll only unlocked dice
+            # Roll only dice that are neither locked nor kept
             for i in range(self.num_dice):
-                if i not in self.locked:
+                if i not in self.locked and i not in self.kept:
                     self.values[i] = random.randint(1, self.sides)
 
-            # Reset kept to just locked dice
-            self.kept = list(self.locked)
+            if clear_kept:
+                # Reset kept to just locked dice
+                self.kept = list(self.locked)
 
         return self.values
 

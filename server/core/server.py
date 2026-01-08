@@ -134,6 +134,10 @@ class Server:
 
         print(f"Loaded {len(tables)} tables from database.")
 
+        # Delete all tables from database after loading to prevent stale data
+        # on subsequent restarts. Tables will be re-saved on shutdown.
+        self._db.delete_all_tables()
+
     def _save_tables(self) -> None:
         """Save all tables to database."""
         tables = self._tables.save_all()
@@ -800,6 +804,9 @@ class Server:
 
         # Notify all players
         game.broadcast_l("table-restored")
+
+        # Delete the saved table now that it's been restored
+        self._db.delete_saved_table(save_id)
 
     def on_table_destroy(self, table) -> None:
         """Handle table destruction. Called by TableManager."""

@@ -127,7 +127,6 @@ class TestScopaGameUnit:
         assert player.name == "Test"
         assert player.hand == []
         assert player.captured == []
-        assert player.scopas == 0
 
     def test_options_defaults(self):
         """Test default options."""
@@ -348,7 +347,6 @@ class TestScopaPersistence:
 
         # Modify state
         game.players[0].captured = [Card(id=0, rank=7, suit=1)]
-        game.players[0].scopas = 2
         game.table_cards = [Card(id=1, rank=5, suit=2)]
 
         # Serialize and deserialize
@@ -356,5 +354,4 @@ class TestScopaPersistence:
         game2 = ScopaGame.from_dict(data)
 
         assert len(game2.players[0].captured) == 1
-        assert game2.players[0].scopas == 2
         assert len(game2.table_cards) == 1

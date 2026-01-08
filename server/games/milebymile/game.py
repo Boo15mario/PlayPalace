@@ -34,25 +34,15 @@ HAND_SIZE = 6
 
 
 @dataclass
-class MileByMileTeam(DataClassJSONMixin):
-    """Team state for Mile by Mile."""
+class RaceState(DataClassJSONMixin):
+    """Per-team race state for Mile by Mile (resets each race)."""
 
-    index: int = 0
-    members: list[str] = field(default_factory=list)
-
-    # Race state
     miles: int = 0
     problems: list[str] = field(default_factory=list)  # Active hazard types
     safeties: list[str] = field(default_factory=list)  # Played safety types
     battle_pile: list[Card] = field(default_factory=list)  # Cards played on/by team
-
-    # Scoring tracking
     used_200_mile: bool = False
     dirty_trick_count: int = 0
-    round_score: int = 0
-    total_score: int = 0
-
-    # Karma rule
     has_karma: bool = True
 
     def has_problem(self, problem_type: str) -> bool:
@@ -90,15 +80,14 @@ class MileByMileTeam(DataClassJSONMixin):
         # Otherwise, can't have any problems (except speed limit doesn't block, just restricts)
         return not self.has_any_problem()
 
-    def reset_for_race(self) -> None:
-        """Reset team state for a new race."""
+    def reset(self) -> None:
+        """Reset state for a new race."""
         self.miles = 0
         self.problems = [HazardType.STOP]  # Everyone starts stopped
         self.safeties = []
         self.battle_pile = []
         self.used_200_mile = False
         self.dirty_trick_count = 0
-        self.round_score = 0
         self.has_karma = True
 
 
@@ -210,7 +199,7 @@ class MileByMileGame(Game):
     protections_pile: list[Card] = field(
         default_factory=list
     )  # Safeties, never reshuffled
-    teams: list[MileByMileTeam] = field(default_factory=list)
+    race_states: list[RaceState] = field(default_factory=list)  # Per-team race state
     current_race: int = 0
     race_winner_team_index: int | None = None
 
@@ -264,46 +253,77 @@ class MileByMileGame(Game):
     # ==========================================================================
 
     def _setup_teams(self) -> None:
-        """Set up teams based on options."""
+        """Set up teams using TeamManager."""
         active_players = self.get_active_players()
-        self.teams = []
+        player_names = [p.name for p in active_players]
 
+        # Convert team mode to TeamManager format
         if self.options.team_mode == "Individual":
-            # Each player is their own team
-            for i, player in enumerate(active_players):
-                team = MileByMileTeam(index=i, members=[player.name])
-                self.teams.append(team)
-                player.team_index = i
+            self._team_manager.team_mode = "individual"
+        elif self.options.team_mode == "2 Teams of 2":
+            self._team_manager.team_mode = "2v2"
+        elif self.options.team_mode == "2 Teams of 3":
+            self._team_manager.team_mode = "2v2"  # Will distribute evenly
+        elif self.options.team_mode == "3 Teams of 2":
+            self._team_manager.team_mode = "2v2v2"
         else:
-            # Parse team mode (e.g., "2 Teams of 2")
-            parts = self.options.team_mode.split()
-            num_teams = int(parts[0])
+            self._team_manager.team_mode = "individual"
 
-            for i in range(num_teams):
-                team = MileByMileTeam(index=i, members=[])
-                self.teams.append(team)
+        self._team_manager.setup_teams(player_names)
 
-            # Distribute players to teams
-            for i, player in enumerate(active_players):
-                team_idx = i % num_teams
-                self.teams[team_idx].members.append(player.name)
-                player.team_index = team_idx
+        # Set player team indices
+        for player in active_players:
+            team = self._team_manager.get_team(player.name)
+            if team:
+                player.team_index = team.index
 
-    def get_player_team(self, player: MileByMilePlayer) -> MileByMileTeam | None:
-        """Get the team for a player."""
-        if 0 <= player.team_index < len(self.teams):
-            return self.teams[player.team_index]
+        # Initialize race states for each team
+        self.race_states = [RaceState() for _ in self._team_manager.teams]
+
+    def get_race_state(self, team_index: int) -> RaceState | None:
+        """Get the race state for a team by index."""
+        if 0 <= team_index < len(self.race_states):
+            return self.race_states[team_index]
         return None
 
-    def get_team_display_name(self, team: MileByMileTeam) -> str:
-        """Get display name for a team."""
-        if self.options.team_mode == "Individual":
-            return team.members[0] if team.members else f"Team {team.index + 1}"
-        return f"Team {team.index + 1}"
+    def get_player_race_state(self, player: MileByMilePlayer) -> RaceState | None:
+        """Get the race state for a player's team."""
+        return self.get_race_state(player.team_index)
+
+    def get_team_name(self, team_index: int) -> str:
+        """Get display name for a team by index."""
+        if team_index < len(self._team_manager.teams):
+            return self._team_manager.get_team_name(self._team_manager.teams[team_index])
+        return f"Team {team_index + 1}"
 
     def is_individual_mode(self) -> bool:
         """Check if game is in individual mode."""
         return self.options.team_mode == "Individual"
+
+    def get_num_teams(self) -> int:
+        """Get the number of teams."""
+        return len(self._team_manager.teams)
+
+    def get_team_score(self, team_index: int) -> int:
+        """Get total score for a team."""
+        if team_index < len(self._team_manager.teams):
+            return self._team_manager.teams[team_index].total_score
+        return 0
+
+    def add_team_score(self, team_index: int, points: int) -> None:
+        """Add points to a team's score."""
+        if team_index < len(self._team_manager.teams):
+            self._team_manager.teams[team_index].total_score += points
+
+    def set_team_round_score(self, team_index: int, points: int) -> None:
+        """Set the round score for a team."""
+        if team_index < len(self._team_manager.teams):
+            self._team_manager.teams[team_index].round_score = points
+
+    def iter_teams(self):
+        """Iterate over (team_index, race_state) pairs."""
+        for i, race_state in enumerate(self.race_states):
+            yield i, race_state
 
     # ==========================================================================
     # Action Sets
@@ -451,8 +471,7 @@ class MileByMileGame(Game):
 
         # Dirty trick only during window
         if self.dirty_trick_window_team is not None:
-            team = self.get_player_team(player)
-            if team and team.index == self.dirty_trick_window_team:
+            if player.team_index == self.dirty_trick_window_team:
                 turn_set.enable("dirty_trick")
             else:
                 turn_set.disable("dirty_trick")
@@ -479,21 +498,21 @@ class MileByMileGame(Game):
 
     def _can_play_card(self, player: MileByMilePlayer, card: Card) -> bool:
         """Check if a card can be played."""
-        team = self.get_player_team(player)
-        if not team:
+        race_state = self.get_player_race_state(player)
+        if not race_state:
             return False
 
         if card.card_type == CardType.DISTANCE:
-            return self._can_play_distance(team, card)
+            return self._can_play_distance(race_state, card)
         elif card.card_type == CardType.HAZARD:
             return self._can_play_hazard(player, card)
         elif card.card_type == CardType.REMEDY:
-            return self._can_play_remedy(team, card)
+            return self._can_play_remedy(race_state, card)
         elif card.card_type == CardType.SAFETY:
-            return not team.has_safety(card.value)
+            return not race_state.has_safety(card.value)
         elif card.card_type == CardType.SPECIAL:
             if card.value == "false_virtue":
-                return not team.has_karma
+                return not race_state.has_karma
         return False
 
     def _get_unplayable_reason(
@@ -502,20 +521,20 @@ class MileByMileGame(Game):
         """Get a human-readable reason why a card can't be played."""
         from ...messages.localization import Localization
 
-        team = self.get_player_team(player)
-        if not team:
+        race_state = self.get_player_race_state(player)
+        if not race_state:
             return Localization.get(locale, "milebymile-reason-not-on-team")
 
         if card.card_type == CardType.DISTANCE:
             distance = card.distance
-            if not team.can_play_distance():
-                if team.has_problem(HazardType.STOP):
+            if not race_state.can_play_distance():
+                if race_state.has_problem(HazardType.STOP):
                     return Localization.get(locale, "milebymile-reason-stopped")
                 return Localization.get(locale, "milebymile-reason-has-problem")
-            if team.has_problem(HazardType.SPEED_LIMIT) and distance > 50:
+            if race_state.has_problem(HazardType.SPEED_LIMIT) and distance > 50:
                 return Localization.get(locale, "milebymile-reason-speed-limit")
             if self.options.only_allow_perfect_crossing:
-                if team.miles + distance > self.options.round_distance:
+                if race_state.miles + distance > self.options.round_distance:
                     return Localization.get(
                         locale,
                         "milebymile-reason-exceeds-distance",
@@ -530,14 +549,14 @@ class MileByMileGame(Game):
             if remedy == RemedyType.END_OF_LIMIT:
                 return Localization.get(locale, "milebymile-reason-no-speed-limit")
             if remedy == RemedyType.ROLL:
-                if team.has_safety(SafetyType.RIGHT_OF_WAY):
+                if race_state.has_safety(SafetyType.RIGHT_OF_WAY):
                     return Localization.get(
                         locale, "milebymile-reason-has-right-of-way"
                     )
-                if not team.has_problem(HazardType.STOP):
+                if not race_state.has_problem(HazardType.STOP):
                     return Localization.get(locale, "milebymile-reason-already-moving")
                 # Check for other problems
-                for problem in team.problems:
+                for problem in race_state.problems:
                     if problem not in (HazardType.STOP, HazardType.SPEED_LIMIT):
                         problem_name = self._get_localized_problem_name(problem, locale)
                         return Localization.get(
@@ -619,39 +638,39 @@ class MileByMileGame(Game):
         key = key_map.get(card.value, "")
         return Localization.get(locale, key) if key else card.name
 
-    def _can_play_distance(self, team: MileByMileTeam, card: Card) -> bool:
+    def _can_play_distance(self, race_state: RaceState, card: Card) -> bool:
         """Check if team can play a distance card."""
-        if not team.can_play_distance():
+        if not race_state.can_play_distance():
             return False
 
         distance = card.distance
 
         # Check speed limit
-        if team.has_problem(HazardType.SPEED_LIMIT) and distance > 50:
+        if race_state.has_problem(HazardType.SPEED_LIMIT) and distance > 50:
             return False
 
         # Check perfect crossing
         if self.options.only_allow_perfect_crossing:
-            if team.miles + distance > self.options.round_distance:
+            if race_state.miles + distance > self.options.round_distance:
                 return False
 
         return True
 
     def _can_play_hazard(self, player: MileByMilePlayer, card: Card) -> bool:
         """Check if hazard can be played on any opponent."""
-        attacker_team = self.get_player_team(player)
-        if not attacker_team:
+        attacker_state = self.get_player_race_state(player)
+        if not attacker_state:
             return False
 
-        for team in self.teams:
-            if team.index == attacker_team.index:
+        for target_idx, target_state in self.iter_teams():
+            if target_idx == player.team_index:
                 continue
-            if self._can_play_hazard_on_team(card.value, team, attacker_team):
+            if self._can_play_hazard_on_team(card.value, target_state, attacker_state):
                 return True
         return False
 
     def _can_play_hazard_on_team(
-        self, hazard: str, target: MileByMileTeam, attacker: MileByMileTeam
+        self, hazard: str, target: RaceState, attacker: RaceState
     ) -> bool:
         """Check if hazard can be played on a specific team."""
         # Check if target has blocking safety
@@ -675,22 +694,22 @@ class MileByMileGame(Game):
             else:
                 return not target.has_any_problem()
 
-    def _can_play_remedy(self, team: MileByMileTeam, card: Card) -> bool:
+    def _can_play_remedy(self, race_state: RaceState, card: Card) -> bool:
         """Check if remedy can be played."""
         remedy = card.value
 
         if remedy == RemedyType.END_OF_LIMIT:
-            return team.has_problem(HazardType.SPEED_LIMIT)
+            return race_state.has_problem(HazardType.SPEED_LIMIT)
 
         if remedy == RemedyType.ROLL:
             # Can't play if have Right of Way
-            if team.has_safety(SafetyType.RIGHT_OF_WAY):
+            if race_state.has_safety(SafetyType.RIGHT_OF_WAY):
                 return False
             # Must have stop problem
-            if not team.has_problem(HazardType.STOP):
+            if not race_state.has_problem(HazardType.STOP):
                 return False
             # Can't have other problems (except speed limit)
-            for problem in team.problems:
+            for problem in race_state.problems:
                 if problem not in (HazardType.STOP, HazardType.SPEED_LIMIT):
                     return False
             return True
@@ -702,22 +721,22 @@ class MileByMileGame(Game):
             RemedyType.REPAIRS: HazardType.ACCIDENT,
         }
         hazard = remedy_to_hazard.get(remedy)
-        return hazard and team.has_problem(hazard)
+        return hazard and race_state.has_problem(hazard)
 
     def _get_valid_hazard_targets(
         self, player: MileByMilePlayer, hazard: str
-    ) -> list[MileByMileTeam]:
-        """Get list of teams that can be targeted by a hazard."""
-        attacker_team = self.get_player_team(player)
-        if not attacker_team:
+    ) -> list[int]:
+        """Get list of team indices that can be targeted by a hazard."""
+        attacker_state = self.get_player_race_state(player)
+        if not attacker_state:
             return []
 
         targets = []
-        for team in self.teams:
-            if team.index == attacker_team.index:
+        for target_idx, target_state in self.iter_teams():
+            if target_idx == player.team_index:
                 continue
-            if self._can_play_hazard_on_team(hazard, team, attacker_team):
-                targets.append(team)
+            if self._can_play_hazard_on_team(hazard, target_state, attacker_state):
+                targets.append(target_idx)
         return targets
 
     # ==========================================================================
@@ -735,17 +754,17 @@ class MileByMileGame(Game):
         locale = user.locale
         none_str = Localization.get(locale, "milebymile-none")
 
-        for team in self.teams:
-            name = self.get_team_display_name(team)
-            if team.problems:
+        for team_idx, race_state in self.iter_teams():
+            name = self.get_team_name(team_idx)
+            if race_state.problems:
                 problems_str = ", ".join(
-                    self._get_localized_problem_name(p, locale) for p in team.problems
+                    self._get_localized_problem_name(p, locale) for p in race_state.problems
                 )
             else:
                 problems_str = none_str
-            if team.safeties:
+            if race_state.safeties:
                 safeties_str = ", ".join(
-                    self._get_localized_safety_name(s, locale) for s in team.safeties
+                    self._get_localized_safety_name(s, locale) for s in race_state.safeties
                 )
             else:
                 safeties_str = none_str
@@ -753,7 +772,7 @@ class MileByMileGame(Game):
             user.speak_l(
                 "milebymile-status",
                 name=name,
-                miles=team.miles,
+                miles=race_state.miles,
                 problems=problems_str,
                 safeties=safeties_str,
             )
@@ -763,8 +782,8 @@ class MileByMileGame(Game):
         if not isinstance(player, MileByMilePlayer):
             return
 
-        team = self.get_player_team(player)
-        if not team or self.dirty_trick_window_team != team.index:
+        race_state = self.get_player_race_state(player)
+        if not race_state or self.dirty_trick_window_team != player.team_index:
             return
 
         hazard = self.dirty_trick_window_hazard
@@ -820,15 +839,17 @@ class MileByMileGame(Game):
         if card.card_type != CardType.HAZARD:
             return []
 
-        targets = self._get_valid_hazard_targets(player, card.value)
+        target_indices = self._get_valid_hazard_targets(player, card.value)
         # Format like v10: "Name (X miles)" for individual, "Team N: members (X miles)" for teams
         options = []
-        for team in targets:
+        for team_idx in target_indices:
+            race_state = self.race_states[team_idx]
+            team = self._team_manager.teams[team_idx]
             if self.is_individual_mode():
-                options.append(f"{team.members[0]} ({team.miles} miles)")
+                options.append(f"{team.members[0]} ({race_state.miles} miles)")
             else:
                 members = ", ".join(team.members)
-                options.append(f"Team {team.index + 1}: {members} ({team.miles} miles)")
+                options.append(f"Team {team_idx + 1}: {members} ({race_state.miles} miles)")
         return options
 
     def _bot_select_hazard_target(
@@ -854,20 +875,20 @@ class MileByMileGame(Game):
         if card.card_type != CardType.HAZARD:
             return None
 
-        targets = self._get_valid_hazard_targets(player, card.value)
-        if not targets:
+        target_indices = self._get_valid_hazard_targets(player, card.value)
+        if not target_indices:
             return None
 
         # Pick target with most miles
-        best_target = max(targets, key=lambda t: t.miles)
+        best_idx = max(target_indices, key=lambda i: self.race_states[i].miles)
+        race_state = self.race_states[best_idx]
+        team = self._team_manager.teams[best_idx]
         # Return in same format as _hazard_target_options
         if self.is_individual_mode():
-            return f"{best_target.members[0]} ({best_target.miles} miles)"
+            return f"{team.members[0]} ({race_state.miles} miles)"
         else:
-            members = ", ".join(best_target.members)
-            return (
-                f"Team {best_target.index + 1}: {members} ({best_target.miles} miles)"
-            )
+            members = ", ".join(team.members)
+            return f"Team {best_idx + 1}: {members} ({race_state.miles} miles)"
 
     def _action_play_card(self, player: Player, *args) -> None:
         """Handle playing a card from hand.
@@ -968,16 +989,16 @@ class MileByMileGame(Game):
 
     def _play_distance(self, player: MileByMilePlayer, slot: int, card: Card) -> None:
         """Play a distance card."""
-        team = self.get_player_team(player)
-        if not team:
+        race_state = self.get_player_race_state(player)
+        if not race_state:
             return
 
         distance = card.distance
         player.hand.pop(slot)
-        team.miles += distance
+        race_state.miles += distance
 
         if distance == 200:
-            team.used_200_mile = True
+            race_state.used_200_mile = True
 
         # Play sounds
         self.play_sound(f"game_cards/play{random.randint(1, 4)}.ogg")
@@ -994,22 +1015,22 @@ class MileByMileGame(Game):
                 "milebymile-plays-distance-individual",
                 player=player.name,
                 distance=distance,
-                total=team.miles,
+                total=race_state.miles,
             )
         else:
             self.broadcast_l(
                 "milebymile-plays-distance-team",
                 player=player.name,
                 distance=distance,
-                total=team.miles,
+                total=race_state.miles,
             )
 
         self.discard_pile.append(card)
 
         # Check for race win
-        if team.miles >= self.options.round_distance:
+        if race_state.miles >= self.options.round_distance:
             if (
-                team.miles == self.options.round_distance
+                race_state.miles == self.options.round_distance
                 and not self.options.only_allow_perfect_crossing
             ):
                 if self.is_individual_mode():
@@ -1019,7 +1040,7 @@ class MileByMileGame(Game):
                     )
                 else:
                     self.broadcast_l(
-                        "milebymile-journey-complete-perfect-team", team=team.index + 1
+                        "milebymile-journey-complete-perfect-team", team=player.team_index + 1
                     )
             else:
                 if self.is_individual_mode():
@@ -1028,11 +1049,11 @@ class MileByMileGame(Game):
                     )
                 else:
                     self.broadcast_l(
-                        "milebymile-journey-complete-team", team=team.index + 1
+                        "milebymile-journey-complete-team", team=player.team_index + 1
                     )
 
             self.play_sound("game_milebymile/winround.ogg")
-            self.race_winner_team_index = team.index
+            self.race_winner_team_index = player.team_index
 
         self._end_turn()
 
@@ -1044,22 +1065,22 @@ class MileByMileGame(Game):
         target_selection: str | None = None,
     ) -> None:
         """Play a hazard card on an opponent."""
-        attacker_team = self.get_player_team(player)
-        if not attacker_team:
+        attacker_state = self.get_player_race_state(player)
+        if not attacker_state:
             return
 
-        targets = self._get_valid_hazard_targets(player, card.value)
-        if not targets:
+        target_indices = self._get_valid_hazard_targets(player, card.value)
+        if not target_indices:
             user = self.get_user(player)
             if user:
                 user.speak_l("milebymile-no-valid-targets")
             return
 
-        # Find target team
+        # Find target team index
+        target_idx: int | None = None
         if target_selection:
             # Target was selected from menu - parse the selection string
             # Format: "Name (X miles)" or "Team N: members (X miles)"
-            target_team = None
             if self.is_individual_mode():
                 # Extract name from "Name (X miles)"
                 name = (
@@ -1067,9 +1088,10 @@ class MileByMileGame(Game):
                     if " (" in target_selection
                     else target_selection
                 )
-                for team in targets:
+                for idx in target_indices:
+                    team = self._team_manager.teams[idx]
                     if team.members and team.members[0] == name:
-                        target_team = team
+                        target_idx = idx
                         break
             else:
                 # Extract team number from "Team N: members (X miles)"
@@ -1078,29 +1100,32 @@ class MileByMileGame(Game):
                         team_num = int(
                             target_selection.split(":")[0].replace("Team ", "")
                         )
-                        for team in targets:
-                            if team.index + 1 == team_num:
-                                target_team = team
+                        for idx in target_indices:
+                            if idx + 1 == team_num:
+                                target_idx = idx
                                 break
                     except (ValueError, IndexError):
                         pass
-            if not target_team:
+            if target_idx is None:
                 return
-        elif len(targets) == 1:
-            target_team = targets[0]
+        elif len(target_indices) == 1:
+            target_idx = target_indices[0]
         else:
             # Multiple targets but no selection - shouldn't happen with MenuInput
-            target_team = targets[0]
+            target_idx = target_indices[0]
+
+        target_state = self.race_states[target_idx]
+        target_team = self._team_manager.teams[target_idx]
 
         player.hand.pop(slot)
 
         # Karma rule: handle karma interactions
         attacker_shunned = False
         if self.options.karma_rule:
-            if attacker_team.has_karma and target_team.has_karma:
+            if attacker_state.has_karma and target_state.has_karma:
                 # Both have karma - attack neutralized
-                attacker_team.has_karma = False
-                target_team.has_karma = False
+                attacker_state.has_karma = False
+                target_state.has_karma = False
 
                 self.play_sound(f"game_cards/play{random.randint(1, 4)}.ogg")
 
@@ -1118,29 +1143,29 @@ class MileByMileGame(Game):
                         "milebymile-plays-hazard-team",
                         card,
                         player=player.name,
-                        team=target_team.index + 1,
+                        team=target_idx + 1,
                     )
 
                 # Then announce neutralization with personalized messages
-                self._announce_karma_clash(player, attacker_team, target_team)
+                self._announce_karma_clash(player, player.team_index, target_idx)
 
                 self.discard_pile.append(card)
                 self._end_turn()
                 return
 
-            elif attacker_team.has_karma and not target_team.has_karma:
+            elif attacker_state.has_karma and not target_state.has_karma:
                 # Attacker loses karma
-                attacker_team.has_karma = False
+                attacker_state.has_karma = False
                 attacker_shunned = True
 
         # Apply hazard
-        target_team.battle_pile.append(card)
-        target_team.add_problem(card.value)
+        target_state.battle_pile.append(card)
+        target_state.add_problem(card.value)
 
         # All hazards except speed limit also add stop
         if card.value != HazardType.SPEED_LIMIT:
-            if not target_team.has_safety(SafetyType.RIGHT_OF_WAY):
-                target_team.add_problem(HazardType.STOP)
+            if not target_state.has_safety(SafetyType.RIGHT_OF_WAY):
+                target_state.add_problem(HazardType.STOP)
 
         # Announce
         self.play_sound(f"game_cards/play{random.randint(1, 4)}.ogg")
@@ -1169,15 +1194,15 @@ class MileByMileGame(Game):
                 "milebymile-plays-hazard-team",
                 card,
                 player=player.name,
-                team=target_team.index + 1,
+                team=target_idx + 1,
             )
 
         # Announce karma loss (personalized)
         if attacker_shunned:
-            self._announce_attacker_shunned(player, attacker_team)
+            self._announce_attacker_shunned(player, player.team_index)
 
         # Open dirty trick window
-        self.dirty_trick_window_team = target_team.index
+        self.dirty_trick_window_team = target_idx
         self.dirty_trick_window_hazard = card.value
         self.dirty_trick_window_ticks = 60  # 3 seconds at 20 ticks/sec
 
@@ -1191,30 +1216,30 @@ class MileByMileGame(Game):
 
     def _play_remedy(self, player: MileByMilePlayer, slot: int, card: Card) -> None:
         """Play a remedy card."""
-        team = self.get_player_team(player)
-        if not team:
+        race_state = self.get_player_race_state(player)
+        if not race_state:
             return
 
         player.hand.pop(slot)
-        team.battle_pile.append(card)
+        race_state.battle_pile.append(card)
 
         remedy = card.value
         self.play_sound(f"game_cards/play{random.randint(1, 4)}.ogg")
 
         if remedy == RemedyType.END_OF_LIMIT:
-            team.remove_problem(HazardType.SPEED_LIMIT)
+            race_state.remove_problem(HazardType.SPEED_LIMIT)
             self.play_sound("game_milebymile/speedlimitend.ogg")
         elif remedy == RemedyType.ROLL:
-            team.remove_problem(HazardType.STOP)
+            race_state.remove_problem(HazardType.STOP)
             self.play_sound(f"game_milebymile/greenlight{random.randint(1, 3)}.ogg")
         elif remedy == RemedyType.GASOLINE:
-            team.remove_problem(HazardType.OUT_OF_GAS)
+            race_state.remove_problem(HazardType.OUT_OF_GAS)
             self.play_sound("game_milebymile/gas.ogg")
         elif remedy == RemedyType.SPARE_TIRE:
-            team.remove_problem(HazardType.FLAT_TIRE)
+            race_state.remove_problem(HazardType.FLAT_TIRE)
             self.play_sound("game_milebymile/sparetyre.ogg")
         elif remedy == RemedyType.REPAIRS:
-            team.remove_problem(HazardType.ACCIDENT)
+            race_state.remove_problem(HazardType.ACCIDENT)
             self.play_sound(f"game_milebymile/repair{random.randint(1, 2)}.ogg")
 
         self._broadcast_card_message("milebymile-plays-card", card, player=player.name)
@@ -1229,15 +1254,15 @@ class MileByMileGame(Game):
         is_dirty_trick: bool = False,
     ) -> None:
         """Play a safety card."""
-        team = self.get_player_team(player)
-        if not team:
+        race_state = self.get_player_race_state(player)
+        if not race_state:
             return
 
         player.hand.pop(slot)
-        team.add_safety(card.value)
+        race_state.add_safety(card.value)
 
         if is_dirty_trick:
-            team.dirty_trick_count += 1
+            race_state.dirty_trick_count += 1
             self._broadcast_card_message(
                 "milebymile-plays-dirty-trick", card, player=player.name
             )
@@ -1246,14 +1271,14 @@ class MileByMileGame(Game):
             # Remove the hazard that triggered this
             hazard = SAFETY_TO_HAZARD.get(card.value)
             if hazard:
-                team.remove_problem(hazard)
+                race_state.remove_problem(hazard)
             if card.value == SafetyType.RIGHT_OF_WAY:
-                team.remove_problem(HazardType.SPEED_LIMIT)
-                team.remove_problem(HazardType.STOP)
+                race_state.remove_problem(HazardType.SPEED_LIMIT)
+                race_state.remove_problem(HazardType.STOP)
 
             # Clean up remaining stop if no other problems
-            if len(team.problems) == 1 and HazardType.STOP in team.problems:
-                team.remove_problem(HazardType.STOP)
+            if len(race_state.problems) == 1 and HazardType.STOP in race_state.problems:
+                race_state.remove_problem(HazardType.STOP)
         else:
             self._broadcast_card_message(
                 "milebymile-plays-card", card, player=player.name
@@ -1273,10 +1298,10 @@ class MileByMileGame(Game):
             # Remove matching problem
             hazard = SAFETY_TO_HAZARD.get(card.value)
             if hazard:
-                team.remove_problem(hazard)
+                race_state.remove_problem(hazard)
             if card.value == SafetyType.RIGHT_OF_WAY:
-                team.remove_problem(HazardType.SPEED_LIMIT)
-                team.remove_problem(HazardType.STOP)
+                race_state.remove_problem(HazardType.SPEED_LIMIT)
+                race_state.remove_problem(HazardType.STOP)
 
         # Safety cards go to protections pile (never reshuffled)
         self.protections_pile.append(card)
@@ -1300,18 +1325,18 @@ class MileByMileGame(Game):
 
     def _play_special(self, player: MileByMilePlayer, slot: int, card: Card) -> None:
         """Play a special card (False Virtue)."""
-        team = self.get_player_team(player)
-        if not team:
+        race_state = self.get_player_race_state(player)
+        if not race_state:
             return
 
         player.hand.pop(slot)
 
         if card.value == "false_virtue":
-            team.has_karma = True
+            race_state.has_karma = True
             self.play_sound(f"game_cards/play{random.randint(1, 4)}.ogg")
 
             # Personalized messages like v10
-            self._announce_false_virtue(player, team)
+            self._announce_false_virtue(player, player.team_index)
 
         self.protections_pile.append(card)
         self._end_turn()
@@ -1393,9 +1418,9 @@ class MileByMileGame(Game):
         self.current_race += 1
         self.race_winner_team_index = None
 
-        # Reset teams for new race
-        for team in self.teams:
-            team.reset_for_race()
+        # Reset race states for new race
+        for race_state in self.race_states:
+            race_state.reset()
 
         # Build and shuffle deck
         attack_mult = 2 if self.options.rig_game == "2x Attacks" else 1
@@ -1473,22 +1498,20 @@ class MileByMileGame(Game):
 
     def _end_race(self) -> None:
         """End the current race and calculate scores."""
-        # Find winner (team with most miles if no one reached target)
-        winning_team = None
-        if self.race_winner_team_index is not None:
-            winning_team = self.teams[self.race_winner_team_index]
-        else:
+        # Find winner (team index with most miles if no one reached target)
+        winning_team_idx: int | None = self.race_winner_team_index
+        if winning_team_idx is None:
             # Find team with most miles
             max_miles = -1
-            for team in self.teams:
-                if team.miles > max_miles:
-                    max_miles = team.miles
-                    winning_team = team
+            for team_idx, race_state in self.iter_teams():
+                if race_state.miles > max_miles:
+                    max_miles = race_state.miles
+                    winning_team_idx = team_idx
 
         self.broadcast_l("milebymile-race-complete")
 
         # Calculate and announce scores
-        self._calculate_race_scores(winning_team)
+        self._calculate_race_scores(winning_team_idx)
 
         # Check for game winner
         game_winner = self._check_game_winner()
@@ -1505,39 +1528,40 @@ class MileByMileGame(Game):
         """Called when round timer expires - start the next race."""
         self._start_race()
 
-    def _calculate_race_scores(self, winning_team: MileByMileTeam | None) -> None:
+    def _calculate_race_scores(self, winning_team_idx: int | None) -> None:
         """Calculate and announce race scores."""
         from ...messages.localization import Localization
 
-        for team in self.teams:
-            base_miles = min(team.miles, self.options.round_distance)
+        for team_idx, race_state in self.iter_teams():
+            base_miles = min(race_state.miles, self.options.round_distance)
             score = base_miles
             # Store bonus keys and their parameters for localization
             bonus_parts: list[tuple[str, dict]] = []  # (message_key, params)
 
-            if team == winning_team and team.miles >= self.options.round_distance:
+            is_winner = team_idx == winning_team_idx
+            if is_winner and race_state.miles >= self.options.round_distance:
                 # Trip complete bonus
                 score += 400
                 bonus_parts.append(("milebymile-from-trip", {"points": 400}))
 
                 # Perfect crossing (only if not forced)
                 if not self.options.only_allow_perfect_crossing:
-                    if team.miles == self.options.round_distance:
+                    if race_state.miles == self.options.round_distance:
                         score += 200
                         bonus_parts.append(("milebymile-from-perfect", {"points": 200}))
 
                 # Safe trip (no 200s)
-                if not team.used_200_mile:
+                if not race_state.used_200_mile:
                     score += 300
                     bonus_parts.append(("milebymile-from-safe", {"points": 300}))
 
                 # Shut out
-                if all(t.miles == 0 for t in self.teams if t != team):
+                if all(rs.miles == 0 for i, rs in self.iter_teams() if i != team_idx):
                     score += 500
                     bonus_parts.append(("milebymile-from-shutout", {"points": 500}))
 
             # Safety bonuses (all teams)
-            safety_count = len(team.safeties)
+            safety_count = len(race_state.safeties)
             if safety_count > 0:
                 safety_bonus = safety_count * 100
                 score += safety_bonus
@@ -1554,21 +1578,21 @@ class MileByMileGame(Game):
                 bonus_parts.append(("milebymile-from-all-safeties", {"points": 300}))
 
             # Dirty trick bonuses
-            if team.dirty_trick_count > 0:
-                dt_bonus = team.dirty_trick_count * 300
+            if race_state.dirty_trick_count > 0:
+                dt_bonus = race_state.dirty_trick_count * 300
                 score += dt_bonus
                 bonus_parts.append(
                     (
                         "milebymile-from-dirty-tricks",
-                        {"points": dt_bonus, "count": team.dirty_trick_count},
+                        {"points": dt_bonus, "count": race_state.dirty_trick_count},
                     )
                 )
 
-            team.round_score = score
-            team.total_score += score
+            self.set_team_round_score(team_idx, score)
+            self.add_team_score(team_idx, score)
 
             # Announce to each player in their locale
-            name = self.get_team_display_name(team)
+            name = self.get_team_name(team_idx)
             for p in self.players:
                 user = self.get_user(p)
                 if not user:
@@ -1595,45 +1619,50 @@ class MileByMileGame(Game):
 
         # Announce total scores
         self.broadcast_l("milebymile-total-scores")
-        for team in self.teams:
-            name = self.get_team_display_name(team)
-            self.broadcast_l("milebymile-team-score", name=name, score=team.total_score)
+        for team_idx in range(self.get_num_teams()):
+            name = self.get_team_name(team_idx)
+            self.broadcast_l("milebymile-team-score", name=name, score=self.get_team_score(team_idx))
 
-    def _check_game_winner(self) -> MileByMileTeam | None:
-        """Check if any team has won the game."""
-        for team in self.teams:
-            if team.total_score >= self.options.winning_score:
+    def _check_game_winner(self) -> int | None:
+        """Check if any team has won the game. Returns team index or None."""
+        for team_idx in range(self.get_num_teams()):
+            if self.get_team_score(team_idx) >= self.options.winning_score:
                 # Find team with highest score
-                best = team
-                for other in self.teams:
-                    if other.total_score > best.total_score:
-                        best = other
-                return best
+                best_idx = team_idx
+                for other_idx in range(self.get_num_teams()):
+                    if self.get_team_score(other_idx) > self.get_team_score(best_idx):
+                        best_idx = other_idx
+                return best_idx
         return None
 
-    def _end_game(self, winner: MileByMileTeam) -> None:
+    def _end_game(self, winner_idx: int) -> None:
         """End the game with a winner."""
         self.play_sound("game_pig/win.ogg")
 
+        winner_team = self._team_manager.teams[winner_idx]
+        winner_score = self.get_team_score(winner_idx)
+
         if self.is_individual_mode():
-            self.broadcast_l("milebymile-wins-individual", player=winner.members[0])
+            self.broadcast_l("milebymile-wins-individual", player=winner_team.members[0])
         else:
-            members_str = ", ".join(winner.members)
+            members_str = ", ".join(winner_team.members)
             self.broadcast_l(
-                "milebymile-wins-team", team=winner.index + 1, members=members_str
+                "milebymile-wins-team", team=winner_idx + 1, members=members_str
             )
-        self.broadcast_l("milebymile-final-score", score=winner.total_score)
+        self.broadcast_l("milebymile-final-score", score=winner_score)
 
         self.finish_game()
         self._show_final_scores()
 
     def _show_final_scores(self) -> None:
         """Show final scores to all players."""
-        sorted_teams = sorted(self.teams, key=lambda t: t.total_score, reverse=True)
+        # Sort teams by score descending
+        team_scores = [(i, self.get_team_score(i)) for i in range(self.get_num_teams())]
+        sorted_teams = sorted(team_scores, key=lambda t: t[1], reverse=True)
         lines = ["Final Scores:"]
-        for i, team in enumerate(sorted_teams, 1):
-            name = self.get_team_display_name(team)
-            lines.append(f"{i}. {name}: {team.total_score} points")
+        for i, (team_idx, score) in enumerate(sorted_teams, 1):
+            name = self.get_team_name(team_idx)
+            lines.append(f"{i}. {name}: {score} points")
         self.show_game_end_menu(lines)
 
     def _get_player_by_name(self, name: str) -> MileByMilePlayer | None:
@@ -1650,11 +1679,12 @@ class MileByMileGame(Game):
     def _announce_karma_clash(
         self,
         attacker: MileByMilePlayer,
-        attacker_team: MileByMileTeam,
-        target_team: MileByMileTeam,
+        attacker_team_idx: int,
+        target_team_idx: int,
     ) -> None:
         """Announce when both attacker and target lose karma (attack neutralized)."""
         if self.is_individual_mode():
+            target_team = self._team_manager.teams[target_team_idx]
             target_name = target_team.members[0]
             for p in self.players:
                 user = self.get_user(p)
@@ -1677,23 +1707,22 @@ class MileByMileGame(Game):
                 user = self.get_user(p)
                 if not user:
                     continue
-                player_team = self.get_player_team(p)
-                if player_team == attacker_team:
+                if p.team_index == attacker_team_idx:
                     user.speak_l("milebymile-karma-clash-your-team")
-                elif player_team == target_team:
+                elif p.team_index == target_team_idx:
                     user.speak_l(
                         "milebymile-karma-clash-target-team",
-                        team=attacker_team.index + 1,
+                        team=attacker_team_idx + 1,
                     )
                 else:
                     user.speak_l(
                         "milebymile-karma-clash-other-teams",
-                        attacker=attacker_team.index + 1,
-                        target=target_team.index + 1,
+                        attacker=attacker_team_idx + 1,
+                        target=target_team_idx + 1,
                     )
 
     def _announce_attacker_shunned(
-        self, attacker: MileByMilePlayer, attacker_team: MileByMileTeam
+        self, attacker: MileByMilePlayer, attacker_team_idx: int
     ) -> None:
         """Announce when attacker loses karma for attacking."""
         if self.is_individual_mode():
@@ -1710,17 +1739,16 @@ class MileByMileGame(Game):
                 user = self.get_user(p)
                 if not user:
                     continue
-                player_team = self.get_player_team(p)
-                if player_team == attacker_team:
+                if p.team_index == attacker_team_idx:
                     user.speak_l("milebymile-karma-shunned-your-team")
                 else:
                     user.speak_l(
                         "milebymile-karma-shunned-other-team",
-                        team=attacker_team.index + 1,
+                        team=attacker_team_idx + 1,
                     )
 
     def _announce_false_virtue(
-        self, player: MileByMilePlayer, team: MileByMileTeam
+        self, player: MileByMilePlayer, team_idx: int
     ) -> None:
         """Announce when a player plays False Virtue to regain karma."""
         if self.is_individual_mode():
@@ -1737,12 +1765,11 @@ class MileByMileGame(Game):
                 user = self.get_user(p)
                 if not user:
                     continue
-                player_team = self.get_player_team(p)
-                if player_team == team:
+                if p.team_index == team_idx:
                     user.speak_l("milebymile-false-virtue-your-team")
                 else:
                     user.speak_l(
-                        "milebymile-false-virtue-other-team", team=team.index + 1
+                        "milebymile-false-virtue-other-team", team=team_idx + 1
                     )
 
     def _broadcast_card_message(self, message_key: str, card: Card, **kwargs) -> None:
@@ -1779,8 +1806,7 @@ class MileByMileGame(Game):
         """Bot AI decision making."""
         # Check for dirty trick opportunity first
         if self.dirty_trick_window_team is not None:
-            team = self.get_player_team(player)
-            if team and team.index == self.dirty_trick_window_team:
+            if player.team_index == self.dirty_trick_window_team:
                 hazard = self.dirty_trick_window_hazard
                 blocking_safety = HAZARD_TO_SAFETY.get(hazard) if hazard else None
                 if blocking_safety:
@@ -1803,12 +1829,12 @@ class MileByMileGame(Game):
         if not player.hand:
             return None
 
-        team = self.get_player_team(player)
-        if not team:
+        race_state = self.get_player_race_state(player)
+        if not race_state:
             return None
 
         target_distance = self.options.round_distance
-        distance_needed = target_distance - team.miles
+        distance_needed = target_distance - race_state.miles
         is_endgame = distance_needed <= 200
 
         # Score each card
@@ -1817,7 +1843,7 @@ class MileByMileGame(Game):
 
         for i, card in enumerate(player.hand):
             priority = self._bot_score_card(
-                player, card, team, distance_needed, is_endgame
+                player, card, race_state, distance_needed, is_endgame
             )
             if priority > best_priority:
                 best_priority = priority
@@ -1829,7 +1855,7 @@ class MileByMileGame(Game):
         self,
         player: MileByMilePlayer,
         card: Card,
-        team: MileByMileTeam,
+        race_state: RaceState,
         distance_needed: int,
         is_endgame: bool,
     ) -> int:
@@ -1851,10 +1877,10 @@ class MileByMileGame(Game):
             return 1000 + distance
 
         elif card.card_type == CardType.REMEDY:
-            if card.value == RemedyType.ROLL and team.has_problem(HazardType.STOP):
-                if not team.has_safety(SafetyType.RIGHT_OF_WAY):
+            if card.value == RemedyType.ROLL and race_state.has_problem(HazardType.STOP):
+                if not race_state.has_safety(SafetyType.RIGHT_OF_WAY):
                     return 3000
-            if card.value == RemedyType.END_OF_LIMIT and team.has_problem(
+            if card.value == RemedyType.END_OF_LIMIT and race_state.has_problem(
                 HazardType.SPEED_LIMIT
             ):
                 return 2800
@@ -1863,7 +1889,7 @@ class MileByMileGame(Game):
             return 150
 
         elif card.card_type == CardType.SAFETY:
-            if team.has_safety(card.value):
+            if race_state.has_safety(card.value):
                 return 50
             if is_endgame and distance_needed <= 100:
                 return 1500
@@ -1872,7 +1898,7 @@ class MileByMileGame(Game):
         elif card.card_type == CardType.HAZARD:
             if not self._can_play_card(player, card):
                 return 200
-            if self.options.karma_rule and team.has_karma:
+            if self.options.karma_rule and race_state.has_karma:
                 # Prefer not attacking if we have karma and can play distance
                 has_playable_distance = any(
                     c.card_type == CardType.DISTANCE and self._can_play_card(player, c)
@@ -1883,7 +1909,7 @@ class MileByMileGame(Game):
             return 800
 
         elif card.card_type == CardType.SPECIAL:
-            if card.value == "false_virtue" and not team.has_karma:
+            if card.value == "false_virtue" and not race_state.has_karma:
                 return 1800
             return 50
 

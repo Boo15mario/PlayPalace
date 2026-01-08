@@ -89,12 +89,6 @@ class PigGame(Game):
     # Game-specific state - use PigPlayer list instead of Player
     players: list[PigPlayer] = field(default_factory=list)
     options: PigOptions = field(default_factory=PigOptions)
-    _team_manager: TeamManager = field(default_factory=TeamManager)
-
-    @property
-    def team_manager(self) -> TeamManager:
-        """Get the team manager for scoring."""
-        return self._team_manager
 
     @classmethod
     def get_name(cls) -> str:
