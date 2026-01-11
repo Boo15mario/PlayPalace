@@ -87,6 +87,7 @@ leaderboard-no-data = Ainda não há dados de placar para este jogo.
 
 # Tipos de placar
 leaderboard-type-wins = Líderes em Vitórias
+leaderboard-type-rating = Classificação de Habilidade
 leaderboard-type-total-score = Pontuação Total
 leaderboard-type-high-score = Maior Pontuação
 leaderboard-type-games-played = Jogos Disputados
@@ -119,3 +120,34 @@ leaderboard-games-entry = { $rank }. { $player }: { $value } jogos
 # Estatísticas do jogador
 leaderboard-player-stats = Suas estatísticas: { $wins } vitórias, { $losses } derrotas ({ $percentage }% de vitórias)
 leaderboard-no-player-stats = Você ainda não jogou este jogo.
+
+# Placar de classificação de habilidade
+leaderboard-no-ratings = Ainda não há dados de classificação para este jogo.
+leaderboard-rating-entry = { $rank }. { $player }: { $rating } classificação ({ $mu } ± { $sigma })
+leaderboard-player-rating = Sua classificação: { $rating } ({ $mu } ± { $sigma })
+leaderboard-no-player-rating = Você ainda não tem classificação neste jogo.
+
+# Menu Minhas Estatísticas
+my-stats = Minhas Estatísticas
+my-stats-select-game = Selecione um jogo para ver suas estatísticas
+my-stats-no-data = Você ainda não jogou este jogo.
+my-stats-header = { $game } - Suas Estatísticas
+my-stats-wins = Vitórias: { $value }
+my-stats-losses = Derrotas: { $value }
+my-stats-winrate = Taxa de vitórias: { $value }%
+my-stats-games-played = Jogos disputados: { $value }
+my-stats-total-score = Pontuação total: { $value }
+my-stats-high-score = Maior pontuação: { $value }
+my-stats-rating = Classificação de habilidade: { $value } ({ $mu } ± { $sigma })
+my-stats-no-rating = Ainda sem classificação de habilidade
+my-stats-avg-per-turn = Média de pontos por turno: { $value }
+my-stats-best-turn = Melhor turno: { $value }
+
+# Sistema de previsão
+predict-outcomes = Prever resultados
+predict-header = Resultados Previstos (por classificação de habilidade)
+predict-entry = { $rank }. { $player } (classificação: { $rating })
+predict-entry-2p = { $rank }. { $player } (classificação: { $rating }, { $probability }% de chance de vitória)
+predict-unavailable = Previsões de classificação não estão disponíveis.
+predict-need-players = Necessário pelo menos 2 jogadores humanos para previsões.
+action-need-more-humans = Necessário mais jogadores humanos.
