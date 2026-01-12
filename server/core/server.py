@@ -190,6 +190,8 @@ class Server:
 
         if packet_type == "authorize":
             await self._handle_authorize(client, packet)
+        elif packet_type == "register":
+            await self._handle_register(client, packet)
         elif not client.authenticated:
             # Ignore non-auth packets from unauthenticated clients
             return
@@ -280,6 +282,31 @@ class Server:
         else:
             # Show main menu
             self._show_main_menu(user)
+
+    async def _handle_register(self, client: ClientConnection, packet: dict) -> None:
+        """Handle registration packet from registration dialog."""
+        username = packet.get("username", "")
+        password = packet.get("password", "")
+        # email and bio are sent but not stored yet
+
+        if not username or not password:
+            await client.send({
+                "type": "speak",
+                "text": "Username and password are required."
+            })
+            return
+
+        # Try to register the user
+        if self._auth.register(username, password):
+            await client.send({
+                "type": "speak",
+                "text": "Registration successful! You can now log in with your credentials."
+            })
+        else:
+            await client.send({
+                "type": "speak",
+                "text": "Username already taken. Please choose a different username."
+            })
 
     # Available languages
     LANGUAGES = {
