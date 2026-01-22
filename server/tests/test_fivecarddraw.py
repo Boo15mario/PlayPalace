@@ -151,12 +151,17 @@ def test_draw_all_in_still_draws():
     game.add_player("Alice", user1)
     game.add_player("Bob", user2)
     game.on_start()
-    player = game.current_player
-    assert player is not None
-    player.chips = 0
-    player.all_in = True
+    players = game.get_active_players()
+    assert len(players) == 2
+    for p in players:
+        p.chips = 0
+        p.all_in = True
     if game.betting:
         game.betting.current_bet = 100
-        game.betting.bets[player.id] = 100
+        game.betting.last_raise_size = 100
+        for p in players:
+            game.betting.bets[p.id] = 100
+        game.betting.acted_since_raise = {p.id for p in players}
+    game.current_bet_round = 1
     game._after_action()
     assert game.phase == "draw"

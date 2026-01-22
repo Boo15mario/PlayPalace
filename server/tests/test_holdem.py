@@ -138,13 +138,15 @@ def test_holdem_pot_limit_raise_cap():
     game.add_player("Alice", user1)
     game.add_player("Bob", user2)
     game.on_start()
+    game.options.raise_mode = "pot_limit"
     player = game.current_player
     assert player is not None
     if game.betting:
         game.betting.current_bet = 10
         game.betting.last_raise_size = 10
         game.betting.bets[player.id] = 0
-    game.pot_manager.contributions = {"p1": 100}
+    game.pot_manager.reset()
+    game.pot_manager.add_contribution("p1", 100)
     player.chips = 200
     game._action_raise(player, "200", "raise")
     assert game.betting.current_bet == 120
