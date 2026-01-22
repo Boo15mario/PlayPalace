@@ -1,5 +1,7 @@
 # Five Card Draw
 
+game-name-fivecarddraw = Five Card Draw
+
 draw-set-starting-chips = Starting chips: { $count }
 draw-enter-starting-chips = Enter starting chips
 draw-option-changed-starting-chips = Starting chips set to { $count }.
@@ -11,6 +13,10 @@ draw-option-changed-ante = Ante set to { $count }.
 draw-set-turn-timer = Turn timer: { $mode }
 draw-select-turn-timer = Select turn timer
 draw-option-changed-turn-timer = Turn timer set to { $mode }.
+
+draw-set-raise-mode = Raise mode: { $mode }
+draw-select-raise-mode = Select raise mode
+draw-option-changed-raise-mode = Raise mode set to { $mode }.
 
 draw-set-max-raises = Max raises: { $count }
 draw-enter-max-raises = Enter max raises (0 for unlimited)

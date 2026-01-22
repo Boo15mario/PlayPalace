@@ -1,5 +1,7 @@
 # Texas Hold'em
 
+game-name-holdem = Texas Hold'em
+
 holdem-set-starting-chips = Starting chips: { $count }
 holdem-enter-starting-chips = Enter starting chips
 holdem-option-changed-starting-chips = Starting chips set to { $count }.
