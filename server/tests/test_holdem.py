@@ -66,7 +66,7 @@ def test_holdem_raise_too_large_rejected():
     assert game.betting.bets.get(player.id, 0) == bet_before
 
 
-def test_holdem_short_stack_raise_becomes_call():
+def test_holdem_short_stack_raise_all_in():
     game = HoldemGame()
     user1 = MockUser("Alice")
     user2 = MockUser("Bob")
@@ -80,7 +80,7 @@ def test_holdem_short_stack_raise_becomes_call():
         game.betting.current_bet = 10
         game.betting.bets[player.id] = 0
     pot_before = game.pot_manager.total_pot()
-    game._action_raise(player, "1", "raise")
+    game._action_raise(player, "5", "raise")
     assert game.pot_manager.total_pot() == pot_before + 5
     if game.betting:
         assert game.betting.current_bet == 10

@@ -572,6 +572,9 @@ class FiveCardDrawGame(Game):
         if amount > p.chips:
             self.broadcast_personal_l(p, "poker-raise-too-large", "poker-raise-too-large")
             return
+        if amount == p.chips:
+            self._action_all_in(p, "all_in")
+            return
         if amount < min_raise:
             self.broadcast_l("poker-raise-too-small", amount=min_raise)
             return
