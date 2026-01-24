@@ -7,6 +7,8 @@ if TYPE_CHECKING:
     from ..users.base import User
     from .teams import TeamManager
 
+from ..messages.localization import Localization
+
 
 class GameScoresMixin:
     """Mixin providing score checking and turn announcement actions.
@@ -28,6 +30,24 @@ class GameScoresMixin:
                 user.speak_l("game-turn-start", player=current.name)
             else:
                 user.speak_l("game-no-turn")
+
+    def _action_whos_at_table(self, player: "Player", action_id: str) -> None:
+        """Announce who is at the table."""
+        user = self.get_user(player)
+        if not user:
+            return
+        players = [p.name for p in self.players if not p.is_spectator]
+        spectators = [p.name for p in self.players if p.is_spectator]
+        count = len(players)
+        if count == 0:
+            user.speak_l("table-no-players")
+            return
+        names = Localization.format_list_and(user.locale, players)
+        key = "table-players-one" if count == 1 else "table-players-many"
+        user.speak_l(key, count=count, players=names)
+        if spectators:
+            spectator_names = Localization.format_list_and(user.locale, spectators)
+            user.speak_l("table-spectators", spectators=spectator_names)
 
     def _action_check_scores(self, player: "Player", action_id: str) -> None:
         """Announce scores briefly."""
