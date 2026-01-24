@@ -368,11 +368,8 @@ class CrazyEightsGame(Game):
         self.pending_round_winner_id = None
 
         # Stop main menu music
-        for player in self.players:
-            user = self.get_user(player)
-            if user:
-                user.stop_ambience()
-                user.stop_music()
+        self.stop_ambience()
+        self.stop_music()
 
         self._team_manager.team_mode = "individual"
         self._team_manager.setup_teams([p.name for p in self.players])
@@ -692,8 +689,6 @@ class CrazyEightsGame(Game):
             return Visibility.HIDDEN
         card = next((c for c in player.hand if c.id == card_id), None)
         if not card:
-            return Visibility.HIDDEN
-        if not self._is_card_playable(card):
             return Visibility.HIDDEN
         return Visibility.VISIBLE
 
