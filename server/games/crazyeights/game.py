@@ -461,8 +461,11 @@ class CrazyEightsGame(Game):
             self.current_suit = start_card.suit
             self._broadcast_start_card()
 
-        # Start with first player
-        self.turn_index = 0
+        # Rotate dealer/first player each hand
+        if self.turn_player_ids:
+            self.turn_index = (self.turn_index + 1) % len(self.turn_player_ids)
+        else:
+            self.turn_index = 0
         self._start_turn()
 
     def _draw_start_card(self) -> Card | None:
@@ -609,8 +612,18 @@ class CrazyEightsGame(Game):
         self.turn_has_drawn = True
         self.turn_drawn_card = card
         playable = self._is_card_playable(card)
-        sound = "game_crazyeights/drawPlayable.ogg" if playable else "game_crazyeights/draw.ogg"
-        self.play_sound(sound)
+        if playable:
+            user = self.get_user(p)
+            if user:
+                user.play_sound("game_crazyeights/drawPlayable.ogg")
+            for other in self.players:
+                if other.id == p.id:
+                    continue
+                other_user = self.get_user(other)
+                if other_user:
+                    other_user.play_sound("game_crazyeights/draw.ogg")
+        else:
+            self.play_sound("game_crazyeights/draw.ogg")
         self._start_turn_timer()  # reset timer after drawing
         self._broadcast_draw(p, 1)
         selection_id = f"play_card_{card.id}" if playable else None
