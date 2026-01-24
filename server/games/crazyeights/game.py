@@ -398,6 +398,12 @@ class CrazyEightsGame(Game):
         self.play_sound("game_crazyeights/intro.ogg")
         self.intro_wait_ticks = 8 * 20
 
+    def initialize_lobby(self, host_name: str, host_user: User) -> None:  # type: ignore[override]
+        super().initialize_lobby(host_name, host_user)
+        # Stop main menu music when entering the table.
+        self.stop_ambience()
+        self.stop_music()
+
     def on_tick(self) -> None:
         super().on_tick()
         self.process_scheduled_sounds()
