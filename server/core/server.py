@@ -2012,11 +2012,11 @@ class Server:
         if not username:
             return
 
-        convo = packet.get("convo", "table")
+        convo = packet.get("convo", "local")
         message = packet.get("message", "")
         language = packet.get("language", "Other")
 
-        if convo == "table":
+        if convo == "local":
             table = self._tables.find_user_table(username)
             if table:
                 for member_name in [m.username for m in table.members]:
@@ -2025,7 +2025,7 @@ class Server:
                         await user.connection.send(
                             {
                                 "type": "chat",
-                                "convo": "table",
+                                "convo": "local",
                                 "sender": username,
                                 "message": message,
                                 "language": language,

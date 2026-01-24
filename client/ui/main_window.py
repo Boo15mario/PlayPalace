@@ -715,18 +715,20 @@ class MainWindow(wx.Frame):
         """Send table chat message to server."""
         if not message:
             return
-        lang = self.get_language_name()
+        # For now send all chats in English
+        lang = "English" #self.get_language_name()
         if not lang:
             return
         self.network.send_packet(
-            {"type": "chat", "convo": "table", "message": message, "language": lang}
+            {"type": "chat", "convo": "local", "message": message, "language": lang}
         )
 
     def send_global_chat(self, prefix: str, message: str):
         """Send global chat message to server."""
         if not message:
             return
-        lang = self.get_language_name(prefix)
+        # For now send all chats in English
+        lang = "English" #self.get_language_name(prefix)
         if not lang:
             return
         self.network.send_packet(
@@ -1291,8 +1293,9 @@ class MainWindow(wx.Frame):
         """Handle chat packet from server."""
         convo = packet.get("convo")
         lang = packet.get("language")
-        if lang not in self.lang_codes.values():
-            lang = "Other"
+        # For now all chats are in English
+        #if lang not in self.lang_codes.values():
+            #lang = "Other"
         # If language matches, ignore subscription tracking
         same_user = packet.get("sender") == self.credentials["username"]
         if (
@@ -1300,7 +1303,7 @@ class MainWindow(wx.Frame):
             and lang != self.client_options["social"]["chat_input_language"]
         ):
             if convo == "global" or (
-                convo == "table"
+                convo == "local"
                 and self.client_options["social"][
                     "include_language_filters_for_table_chat"
                 ]
@@ -1318,11 +1321,11 @@ class MainWindow(wx.Frame):
         # Convo doesn't support muting, or the mute flag is disabled
         if (
             same_user
-            or convo not in {"global", "table"}
+            or convo not in {"global", "local"}
             or not self.client_options["social"][f"mute_{convo}_chat"]
         ):
             sound = "chat"
-            if convo == "table":
+            if convo == "local":
                 sound += "local"
             self.sound_manager.play(sound + ".ogg")
             self.speaker.speak(message)
