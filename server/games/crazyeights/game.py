@@ -406,7 +406,7 @@ class CrazyEightsGame(Game):
         self._sync_team_scores()
 
         self.play_sound("game_crazyeights/intro.ogg")
-        self.intro_wait_ticks = 8 * 20
+        self.intro_wait_ticks = 7 * 20
 
     def on_tick(self) -> None:
         super().on_tick()
@@ -473,13 +473,6 @@ class CrazyEightsGame(Game):
                 if card:
                     p.hand.append(card)
 
-        # Select starting card (numbered only)
-        start_card = self._draw_start_card()
-        if start_card:
-            self.discard_pile.append(start_card)
-            self.current_suit = start_card.suit
-            self._broadcast_start_card()
-
         # Rotate dealer/first player each hand
         if self.turn_player_ids:
             self.dealer_index = (self.dealer_index + 1) % len(self.turn_player_ids)
@@ -487,6 +480,13 @@ class CrazyEightsGame(Game):
         else:
             self.dealer_index = -1
             self.turn_index = 0
+
+        # Select starting card (numbered only)
+        start_card = self._draw_start_card()
+        if start_card:
+            self.discard_pile.append(start_card)
+            self.current_suit = start_card.suit
+            self._broadcast_start_card()
         self._start_turn()
 
     def _draw_start_card(self) -> Card | None:
@@ -1134,12 +1134,15 @@ class CrazyEightsGame(Game):
             )
 
     def _broadcast_start_card(self) -> None:
+        dealer = self.current_player
+        dealer_name = dealer.name if dealer else Localization.get("en", "unknown-player")
         for p in self.players:
             user = self.get_user(p)
             if not user:
                 continue
             user.speak_l(
                 "crazyeights-start-card",
+                player=dealer_name,
                 card=self.format_top_card(user.locale),
             )
 
