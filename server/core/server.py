@@ -1,6 +1,8 @@
 """Main server class that ties everything together."""
 
 import asyncio
+import logging
+import sys
 from pathlib import Path
 
 import json
@@ -2170,6 +2172,37 @@ async def run_server(
         ssl_cert: Path to SSL certificate file (for WSS support)
         ssl_key: Path to SSL private key file (for WSS support)
     """
+    logging.basicConfig(
+        filename="errors.log",
+        level=logging.ERROR,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    def _log_uncaught(exc_type, exc, tb):
+        if exc_type in (KeyboardInterrupt, asyncio.CancelledError):
+            return
+        logging.getLogger("playpalace").exception(
+            "Uncaught exception", exc_info=(exc_type, exc, tb)
+        )
+
+    sys.excepthook = _log_uncaught
+    loop = asyncio.get_running_loop()
+
+    def _asyncio_exception_handler(loop, context):
+        exc = context.get("exception")
+        if isinstance(exc, asyncio.CancelledError):
+            return
+        if exc:
+            logging.getLogger("playpalace").exception(
+                "Asyncio exception", exc_info=exc
+            )
+        else:
+            logging.getLogger("playpalace").error(
+                "Asyncio error: %s", context.get("message")
+            )
+
+    loop.set_exception_handler(_asyncio_exception_handler)
+
     server = Server(host=host, port=port, ssl_cert=ssl_cert, ssl_key=ssl_key)
     await server.start()
 
