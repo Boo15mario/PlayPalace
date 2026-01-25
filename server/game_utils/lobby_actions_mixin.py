@@ -150,6 +150,16 @@ class LobbyActionsMixin:
 
     def _perform_leave_game(self, player: "Player") -> None:
         """Leave the game."""
+        # Spectators can always leave cleanly (no bot replacement)
+        if player.is_spectator:
+            self.players = [p for p in self.players if p.id != player.id]
+            self.player_action_sets.pop(player.id, None)
+            self._users.pop(player.id, None)
+            self.broadcast_l("spectator-left", player=player.name)
+            self.broadcast_sound("leave_spectator.ogg")
+            self.rebuild_all_menus()
+            return
+
         if self.status == "playing" and not player.is_bot:
             # Mid-game: replace human with bot instead of removing
             # Keep the same player ID so they can rejoin and take over
@@ -275,5 +285,14 @@ class LobbyActionsMixin:
         self.players.append(player)
         self.attach_user(player.id, user)
         # Set up action sets for the new player
+        self.setup_player_actions(player)
+        return player
+
+    def add_spectator(self, name: str, user: "User") -> "Player":
+        """Add a spectator to the game."""
+        player = self.create_player(user.uuid, name, is_bot=False)
+        player.is_spectator = True
+        self.players.append(player)
+        self.attach_user(player.id, user)
         self.setup_player_actions(player)
         return player

@@ -62,6 +62,7 @@ spectator-joined = Joined { $host }'s table as a spectator.
 spectate = Spectate
 now-playing = { $player } is now playing.
 now-spectating = { $player } is now spectating.
+spectator-left = { $player } stopped spectating.
 
 # General
 welcome = Welcome to PlayPalace!

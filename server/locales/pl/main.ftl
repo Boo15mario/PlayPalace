@@ -60,6 +60,7 @@ spectator-joined = dołączył stół { $host } table jako spektator.
 spectate = śledź
 now-playing = { $player } dołącza do rozgrywki
 now-spectating = { $player } teraz śledzi rozgrywkę
+spectator-left = { $player } przestał śledzić.
 
 # General
 welcome = witaj w Play Palace!

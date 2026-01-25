@@ -60,6 +60,7 @@ table-spectators = Espectadores: { $spectators }.
 spectate = Assistir
 now-playing = { $player } agora está jogando.
 now-spectating = { $player } agora está assistindo.
+spectator-left = { $player } parou de assistir.
 
 # Geral
 welcome = Bem-vindo ao PlayPalace!

@@ -931,6 +931,7 @@ class Server:
         else:
             # Join as spectator
             table.add_member(user.username, user, as_spectator=True)
+            game.add_spectator(user.username, user)
             user.speak_l("spectator-joined", host=table.host)
             game.broadcast_l("now-spectating", player=user.username)
             game.broadcast_sound("join_spectator.ogg")
@@ -985,6 +986,7 @@ class Server:
                 else:
                     # No matching player - join as spectator instead
                     table.add_member(user.username, user, as_spectator=True)
+                    game.add_spectator(user.username, user)
                     user.speak_l("spectator-joined", host=table.host)
                     game.broadcast_l("now-spectating", player=user.username)
                     game.broadcast_sound("join_spectator.ogg")
@@ -1010,11 +1012,11 @@ class Server:
 
         elif selection_id == "join_spectator":
             table.add_member(user.username, user, as_spectator=True)
+            game.add_spectator(user.username, user)
             user.speak_l("spectator-joined", host=table.host)
             game.broadcast_l("now-spectating", player=user.username)
             game.broadcast_sound("join_spectator.ogg")
             game.rebuild_all_menus()
-            # TODO: spectator viewing - for now just track membership
             self._user_states[user.username] = {"menu": "in_game", "table_id": table_id}
 
         elif selection_id == "back":

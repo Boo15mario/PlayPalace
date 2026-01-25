@@ -60,6 +60,7 @@ table-spectators = 观众：{ $spectators }。
 spectate = 观战
 now-playing = { $player } 现在参与游戏。
 now-spectating = { $player } 现在观战。
+spectator-left = { $player } 停止观战。
 
 # 通用
 welcome = 欢迎来到 PlayPalace！

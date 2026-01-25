@@ -66,6 +66,7 @@ table-spectators = Khán giả: { $spectators }.
 spectate = Xem
 now-playing = { $player } đang chơi.
 now-spectating = { $player } đang xem.
+spectator-left = { $player } đã ngừng xem.
 
 # Chung
 welcome = Chào mừng đến với PlayPalace!
