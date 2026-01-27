@@ -298,7 +298,7 @@ class NinetyNineGame(Game):
 
         # Card slot actions will be dynamically created in _update_card_actions
 
-        # Status action (keybind only)
+        # Status actions (keybind only)
         action_set.add(
             Action(
                 id="check_count",
@@ -306,6 +306,15 @@ class NinetyNineGame(Game):
                 handler="_action_check_count",
                 is_enabled="_is_check_count_enabled",
                 is_hidden="_is_check_count_hidden",
+            )
+        )
+        action_set.add(
+            Action(
+                id="check_hand",
+                label="Check hand",
+                handler="_action_check_hand",
+                is_enabled="_is_check_hand_enabled",
+                is_hidden="_is_check_hand_hidden",
             )
         )
 
@@ -339,6 +348,14 @@ class NinetyNineGame(Game):
             ["check_count"],
             state=KeybindState.ACTIVE,
             include_spectators=True,
+        )
+
+        # Hand check
+        self.define_keybind(
+            "h",
+            "Check hand",
+            ["check_hand"],
+            state=KeybindState.ACTIVE,
         )
 
     def _update_card_actions(self, player: NinetyNinePlayer) -> None:
@@ -431,17 +448,21 @@ class NinetyNineGame(Game):
         """Check count is always hidden (keybind only)."""
         return Visibility.HIDDEN
 
-    def _is_card_slot_enabled(self, player: Player) -> str | None:
-        """Check if card slot actions are enabled."""
+    def _is_check_hand_enabled(self, player: Player) -> str | None:
+        """Check if check hand action is enabled."""
         if self.status != "playing":
             return "action-not-playing"
-        if self.current_player != player:
-            return "action-not-your-turn"
-        if self.pending_choice is not None:
-            return "ninetynine-choose-first"
-        nn_player: NinetyNinePlayer = player  # type: ignore
-        if self.pending_draw_player_id == nn_player.id:
-            return "ninetynine-draw-first"
+        return None
+
+    def _is_check_hand_hidden(self, player: Player) -> Visibility:
+        """Check hand is always hidden (keybind only)."""
+        return Visibility.HIDDEN
+
+    def _is_card_slot_enabled(self, player: Player) -> str | None:
+        """Check if card slot actions are enabled (always enabled during play)."""
+        if self.status != "playing":
+            return "action-not-playing"
+        # Always enabled during play - handler will announce card if not playable
         return None
 
     def _is_card_slot_hidden(self, player: Player) -> Visibility:
@@ -471,10 +492,8 @@ class NinetyNineGame(Game):
         return None
 
     def _is_draw_hidden(self, player: Player) -> Visibility:
-        """Draw action is visible during play."""
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        """Draw action is always hidden (keybind only)."""
+        return Visibility.HIDDEN
 
     def _update_turn_actions(self, player: NinetyNinePlayer) -> None:
         """Update turn action availability for a player."""
@@ -598,7 +617,7 @@ class NinetyNineGame(Game):
         self.broadcast_l("ninetynine-no-valid-cards", player=player.name)
 
         self._play_sound_for_player(
-            player, "game_pig/win.ogg", "game_ninetynine/lose2.ogg"
+            player, "game_ninetynine/lose2.ogg", "game_pig/win.ogg"
         )
 
         player.tokens = max(0, player.tokens - PENALTY_BUST_RS)
@@ -656,15 +675,9 @@ class NinetyNineGame(Game):
     # ==========================================================================
 
     def _action_play_card(self, player: Player, action_id: str) -> None:
-        """Handle playing a card."""
+        """Handle playing a card, or announce it if not playable."""
         if not isinstance(player, NinetyNinePlayer):
             return
-
-        if self.current_player != player:
-            return
-
-        if self.pending_choice is not None:
-            return  # Must make choice first
 
         # Extract slot number
         try:
@@ -676,6 +689,24 @@ class NinetyNineGame(Game):
             return
 
         card = player.hand[slot]
+        user = self.get_user(player)
+        locale = user.locale if user else "en"
+
+        # Check if card can be played - if not, just announce it
+        if self.current_player != player:
+            if user:
+                user.speak(card_name(card, locale))
+            return
+
+        if self.pending_choice is not None:
+            if user:
+                user.speak_l("ninetynine-choose-first")
+            return
+
+        if self.pending_draw_player_id == player.id:
+            if user:
+                user.speak_l("ninetynine-draw-first")
+            return
         old_count = self.count
 
         # Calculate value and check if choice is needed
@@ -828,9 +859,6 @@ class NinetyNineGame(Game):
             self._advance_turn()
             self._update_all_turn_actions()
             self.rebuild_all_menus()
-            user = self.get_user(player)
-            if user:
-                user.speak_l("ninetynine-draw-prompt")
 
     def _check_milestones(
         self,
@@ -882,7 +910,7 @@ class NinetyNineGame(Game):
 
         if milestone == "99":
             self._play_sound_for_player(
-                player, "game_ninetynine/lose2.ogg", "game_pig/win.ogg"
+                player, "game_pig/win.ogg", "game_ninetynine/lose2.ogg"
             )
         else:
             self._play_sound_for_player(
@@ -913,7 +941,7 @@ class NinetyNineGame(Game):
     def _player_busts(self, player: NinetyNinePlayer) -> None:
         """Player went over 99."""
         self._play_sound_for_player(
-            player, "game_pig/win.ogg", "game_ninetynine/lose2.ogg"
+            player, "game_ninetynine/lose2.ogg", "game_pig/win.ogg"
         )
 
         amount = PENALTY_BUST if self.is_quentin_c else PENALTY_BUST_RS
@@ -926,7 +954,7 @@ class NinetyNineGame(Game):
     def _player_out_of_cards(self, player: NinetyNinePlayer) -> None:
         """Player has no cards on their turn."""
         self._play_sound_for_player(
-            player, "game_pig/win.ogg", "game_ninetynine/lose2.ogg"
+            player, "game_ninetynine/lose2.ogg", "game_pig/win.ogg"
         )
 
         player.tokens = max(0, player.tokens - PENALTY_NO_CARDS)
@@ -1086,6 +1114,22 @@ class NinetyNineGame(Game):
         user = self.get_user(player)
         if user:
             user.speak_l("ninetynine-current-count", count=self.count)
+
+    def _action_check_hand(self, player: Player, action_id: str) -> None:
+        """Announce the player's hand."""
+        if not isinstance(player, NinetyNinePlayer):
+            return
+        user = self.get_user(player)
+        if not user:
+            return
+
+        if not player.hand:
+            user.speak_l("ninetynine-hand-empty")
+            return
+
+        locale = user.locale
+        card_names = [card_name(card, locale) for card in player.hand]
+        user.speak_l("ninetynine-hand-cards", cards=", ".join(card_names))
 
     # ==========================================================================
     # Bot AI

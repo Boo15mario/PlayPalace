@@ -51,6 +51,10 @@ ninetynine-no-valid-cards = { $player } has no cards that won't go over 99!
 # Status - for C key
 ninetynine-current-count = The count is { $count }.
 
+# Hand check - for H key
+ninetynine-hand-cards = Your cards: { $cards }.
+ninetynine-hand-empty = You have no cards.
+
 # Ace choice
 ninetynine-ace-choice = Play Ace as +1 or +11?
 ninetynine-ace-add-eleven = Add 11
