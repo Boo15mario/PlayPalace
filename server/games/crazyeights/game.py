@@ -521,7 +521,11 @@ class CrazyEightsGame(Game):
         self._stop_turn_loop()
         self._start_turn_loop(player)
 
-        self.broadcast_l("game-turn-start", player=player.name)
+        self.broadcast_personal_l(
+            player,
+            "game-your-turn",
+            "game-turn-start"
+        )
 
         if player.is_bot:
             BotHelper.jolt_bot(player, ticks=random.randint(30, 40))
@@ -1163,12 +1167,19 @@ class CrazyEightsGame(Game):
                 if points_parts
                 else Localization.get(user.locale, "crazyeights-round-details-none")
             )
-            user.speak_l(
-                "crazyeights-round-summary",
-                player=winner.name,
-                details=details,
-                total=total,
-            )
+            if p.id == winner.id:
+                user.speak_l(
+                    "crazyeights-you-win-round",
+                    details=details,
+                    total=total,
+                )
+            else:
+                user.speak_l(
+                    "crazyeights-round-summary",
+                    player=winner.name,
+                    details=details,
+                    total=total,
+                )
 
     def _broadcast_start_card(self) -> None:
         dealer = (
@@ -1181,11 +1192,15 @@ class CrazyEightsGame(Game):
             user = self.get_user(p)
             if not user:
                 continue
-            user.speak_l(
-                "crazyeights-start-card",
-                player=dealer_name,
-                card=self.format_top_card(user.locale),
-            )
+            card_text = self.format_top_card(user.locale)
+            if dealer and p.id == dealer.id:
+                user.speak_l("crazyeights-you-turn-up", card=card_text)
+            else:
+                user.speak_l(
+                    "crazyeights-start-card",
+                    player=dealer_name,
+                    card=card_text,
+                )
 
     def _broadcast_suit_chosen(self, suit: int) -> None:
         for p in self.players:
@@ -1200,26 +1215,40 @@ class CrazyEightsGame(Game):
             user = self.get_user(p)
             if not user:
                 continue
-            user.speak_l(
-                "crazyeights-player-plays",
-                player=player.name,
-                card=self.format_card(card, user.locale),
-            )
+            card_text = self.format_card(card, user.locale)
+            one_card_text = Localization.get(user.locale, 'crazyeights-one-card') if len(player.hand) == 1 else ""
+            
+            if p.id == player.id:
+                msg = Localization.get(user.locale, "crazyeights-you-play", card=card_text)
+            else:
+                msg = Localization.get(user.locale, "crazyeights-player-plays", player=player.name, card=card_text)
+            
+            if one_card_text:
+                user.speak(f"{msg} {one_card_text}")
+            else:
+                user.speak(msg)
 
     def _broadcast_draw(self, player: CrazyEightsPlayer, count: int) -> None:
-        key = "crazyeights-player-draws-one" if count == 1 else "crazyeights-player-draws-many"
-        for p in self.players:
-            user = self.get_user(p)
-            if not user:
-                continue
-            user.speak_l(key, player=player.name, count=count)
+        if count == 1:
+            self.broadcast_personal_l(
+                player,
+                "crazyeights-you-draw-one",
+                "crazyeights-player-draws-one",
+            )
+        else:
+            self.broadcast_personal_l(
+                player,
+                "crazyeights-you-draw-many",
+                "crazyeights-player-draws-many",
+                count=count,
+            )
 
     def _broadcast_pass(self, player: CrazyEightsPlayer) -> None:
-        for p in self.players:
-            user = self.get_user(p)
-            if not user:
-                continue
-            user.speak_l("crazyeights-player-passes", player=player.name)
+        self.broadcast_personal_l(
+            player,
+            "crazyeights-you-pass",
+            "crazyeights-player-passes",
+        )
 
     def _play_round_end_sounds(
         self,
@@ -1247,7 +1276,12 @@ class CrazyEightsGame(Game):
     def _end_game(self, winner: CrazyEightsPlayer) -> None:
         self._stop_turn_loop()
         self.play_sound("game_crazyeights/hitmark.ogg")
-        self.broadcast_l("crazyeights-game-winner", player=winner.name, score=winner.score)
+        self.broadcast_personal_l(
+            winner,
+            "crazyeights-you-win-game",
+            "crazyeights-game-winner",
+            score=winner.score,
+        )
         for p in self.players:
             user = self.get_user(p)
             if user:
@@ -1313,3 +1347,10 @@ class CrazyEightsGame(Game):
             if user:
                 user.stop_ambience()
         self._turn_sound_player_id = None
+
+    def on_player_skipped(self, player: Player) -> None:
+        self.broadcast_personal_l(
+            player,
+            "crazyeights-you-are-skipped",
+            "crazyeights-player-skipped",
+        )
