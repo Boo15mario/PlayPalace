@@ -7,7 +7,7 @@ from pathlib import Path
 
 import json
 
-from .tick import TickScheduler
+from .tick import TickScheduler, load_server_config
 from .administration import AdministrationMixin
 from .virtual_bots import VirtualBotManager
 from ..network.websocket_server import WebSocketServer, ClientConnection
@@ -86,6 +86,10 @@ class Server(AdministrationMixin):
         # Load existing tables
         self._load_tables()
 
+        # Load server configuration
+        server_config = load_server_config()
+        tick_interval_ms = server_config.get("tick_interval_ms")
+
         # Initialize virtual bots
         self._virtual_bots.load_config()
         loaded = self._virtual_bots.load_state()
@@ -105,8 +109,10 @@ class Server(AdministrationMixin):
         await self._ws_server.start()
 
         # Start tick scheduler
-        self._tick_scheduler = TickScheduler(self._on_tick)
+        self._tick_scheduler = TickScheduler(self._on_tick, tick_interval_ms)
         await self._tick_scheduler.start()
+        if tick_interval_ms:
+            print(f"Tick interval: {tick_interval_ms}ms ({1000 // tick_interval_ms} ticks/sec)")
 
         protocol = "wss" if self._ssl_cert else "ws"
         print(f"Server running on {protocol}://{self.host}:{self.port}")
