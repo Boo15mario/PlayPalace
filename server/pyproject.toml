@@ -31,6 +31,9 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = [".."]
+markers = [
+    "slow: marks tests that require --runslow to execute",
+]
 
 
 [tool.hatch.build.targets.wheel]
