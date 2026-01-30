@@ -1281,15 +1281,25 @@ class MainWindow(wx.Frame):
         if not self.config_manager or not self.server_id:
             return
 
+        # Ensure profile structure exists
+        profiles = self.config_manager.profiles
+        profiles.setdefault("server_options", {})
+        profiles.setdefault("client_options_defaults", {}).setdefault("local_table", {}).setdefault(
+            "creation_notifications", {}
+        )
+        profiles.setdefault("client_options_defaults", {}).setdefault("social", {}).setdefault(
+            "language_subscriptions", {}
+        )
+
         updated = False
 
         languages = tuple(self.lang_codes.values())
         # Update games in both default profile and server profile
         if self.games_list:
             # Update default profile
-            default_local_table = self.config_manager.profiles[
-                "client_options_defaults"
-            ].setdefault("local_table", {})
+            default_local_table = profiles["client_options_defaults"].setdefault(
+                "local_table", {}
+            )
             default_creation_notifications = default_local_table.setdefault("creation_notifications", {})
             for game_info in self.games_list:
                 game_name = game_info["name"]
@@ -1298,10 +1308,9 @@ class MainWindow(wx.Frame):
                     updated = True
 
             # Update server profile
-            if self.server_id in self.config_manager.profiles["servers"]:
-                server_overrides = self.config_manager.profiles["servers"][
-                    self.server_id
-                ].setdefault("options_overrides", {})
+            server_profiles = profiles.get("server_options", {})
+            if self.server_id in server_profiles:
+                server_overrides = server_profiles[self.server_id].setdefault("options_overrides", {})
                 server_local_table = server_overrides.setdefault("local_table", {})
                 server_creation_notifications = server_local_table.setdefault(
                     "creation_notifications", {}
@@ -1316,9 +1325,7 @@ class MainWindow(wx.Frame):
         # Rebuild dicts to match server order (alphabetical ascending)
         if languages:
             # Update default profile - rebuild to match server order
-            default_social = self.config_manager.profiles[
-                "client_options_defaults"
-            ].setdefault("social", {})
+            default_social = profiles["client_options_defaults"].setdefault("social", {})
             default_lang_subscriptions = default_social.get(
                 "language_subscriptions", {}
             )
@@ -1332,10 +1339,9 @@ class MainWindow(wx.Frame):
                 updated = True
 
             # Update server profile - rebuild to match server order
-            if self.server_id in self.config_manager.profiles["servers"]:
-                server_overrides = self.config_manager.profiles["servers"][
-                    self.server_id
-                ].setdefault("options_overrides", {})
+            server_profiles = profiles.get("server_options", {})
+            if self.server_id in server_profiles:
+                server_overrides = server_profiles[self.server_id].setdefault("options_overrides", {})
                 social_overrides = server_overrides.setdefault("social", {})
                 lang_subscriptions = social_overrides.get(
                     "language_subscriptions", {}

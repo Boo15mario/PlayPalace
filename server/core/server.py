@@ -550,7 +550,13 @@ class Server(AdministrationMixin):
         items = []
         for category_key in sorted(categories.keys()):
             category_name = Localization.get(user.locale, category_key)
-            items.append(MenuItem(text=category_name, id=f"category_{category_key}"))
+            game_count = len(categories.get(category_key, []))
+            items.append(
+                MenuItem(
+                    text=f"{category_name} ({game_count})",
+                    id=f"category_{category_key}",
+                )
+            )
         items.append(MenuItem(text=Localization.get(user.locale, "back"), id="back"))
 
         user.show_menu(
@@ -1036,7 +1042,11 @@ class Server(AdministrationMixin):
             game_type = selection_id[5:]  # Remove "game_" prefix
             self._show_tables_menu(user, game_type)
         elif selection_id == "back":
-            self._show_main_menu(user)
+            category = state.get("category")
+            if category:
+                self._show_games_menu(user, category)
+            else:
+                self._show_categories_menu(user)
 
     async def _handle_tables_selection(
         self, user: NetworkUser, selection_id: str, state: dict
