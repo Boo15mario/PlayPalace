@@ -32,12 +32,12 @@ class UiPlatformConfig:
     def for_platform() -> "UiPlatformConfig":
         # Keep sizes modest but visible on all platforms
         return UiPlatformConfig(
-            window_size=(760, 720),
-            menu_size=(700, 420),
-            history_size=(700, 200),
-            chat_size=(700, 28),
-            edit_size=(700, 28),
-            multiline_size=(700, 120),
+            window_size=(980, 720),
+            menu_size=(260, 520),
+            history_size=(680, 520),
+            chat_size=(680, 28),
+            edit_size=(680, 28),
+            multiline_size=(680, 120),
         )
 
 
@@ -199,16 +199,19 @@ class MainWindow(wx.Frame):
         # Make sure it's accessible to screen readers despite small size
         self.history_text.SetName("History")
 
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.menu_label, 0, wx.ALL, 4)
-        sizer.Add(self.menu_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
-        sizer.Add(self.edit_label, 0, wx.ALL, 4)
-        sizer.Add(self.edit_input, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
-        sizer.Add(self.edit_input_multiline, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
-        sizer.Add(self.chat_label, 0, wx.ALL, 4)
-        sizer.Add(self.chat_input, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
-        sizer.Add(self.history_label, 0, wx.ALL, 4)
-        sizer.Add(self.history_text, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        left_sizer = wx.BoxSizer(wx.VERTICAL)
+        left_sizer.Add(self.menu_label, 0, wx.ALL, 4)
+        left_sizer.Add(self.menu_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+
+        right_sizer = wx.BoxSizer(wx.VERTICAL)
+        right_sizer.Add(self.history_label, 0, wx.ALL, 4)
+        right_sizer.Add(self.history_text, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
+        right_sizer.Add(self.chat_label, 0, wx.ALL, 4)
+        right_sizer.Add(self.chat_input, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(left_sizer, 0, wx.EXPAND | wx.ALL, 4)
+        sizer.Add(right_sizer, 1, wx.EXPAND | wx.ALL, 4)
         panel.SetSizer(sizer)
 
     def _setup_accelerators(self):
