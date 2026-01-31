@@ -1081,17 +1081,17 @@ class AdministrationMixin:
     async def _fill_virtual_bots(self, owner: NetworkUser) -> None:
         """Fill the server with virtual bots from config."""
         if not hasattr(self, "_virtual_bots") or not self._virtual_bots:
-            _speak_activity(owner, "virtual-bots-not-available")
+            owner.speak_l("virtual-bots-not-available", buffer="misc")
             self._show_virtual_bots_menu(owner)
             return
 
         added, online = self._virtual_bots.fill_server()
         if added > 0:
-            _speak_activity(owner, "virtual-bots-filled", added=added, online=online)
+            owner.speak_l("virtual-bots-filled", added=added, online=online, buffer="misc")
             # Save state after filling
             self._virtual_bots.save_state()
         else:
-            _speak_activity(owner, "virtual-bots-already-filled")
+            owner.speak_l("virtual-bots-already-filled", buffer="misc")
 
         self._show_virtual_bots_menu(owner)
 
@@ -1099,19 +1099,20 @@ class AdministrationMixin:
     async def _clear_virtual_bots(self, owner: NetworkUser) -> None:
         """Clear all virtual bots from the server."""
         if not hasattr(self, "_virtual_bots") or not self._virtual_bots:
-            _speak_activity(owner, "virtual-bots-not-available")
+            owner.speak_l("virtual-bots-not-available", buffer="misc")
             self._show_virtual_bots_menu(owner)
             return
 
         bots_cleared, tables_killed = self._virtual_bots.clear_bots()
         if bots_cleared > 0:
-            _speak_activity(owner, 
+            owner.speak_l( 
                 "virtual-bots-cleared",
                 bots=bots_cleared,
                 tables=tables_killed,
+                buffer="misc",
             )
         else:
-            _speak_activity(owner, "virtual-bots-none-to-clear")
+            owner.speak_l("virtual-bots-none-to-clear", buffer="misc")
 
         self._show_virtual_bots_menu(owner)
 
@@ -1119,7 +1120,7 @@ class AdministrationMixin:
     async def _show_virtual_bots_status(self, owner: NetworkUser) -> None:
         """Show virtual bots status."""
         if not hasattr(self, "_virtual_bots") or not self._virtual_bots:
-            _speak_activity(owner, "virtual-bots-not-available")
+            owner.speak_l("virtual-bots-not-available", buffer="misc")
             self._show_virtual_bots_menu(owner)
             return
 
