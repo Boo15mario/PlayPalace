@@ -425,9 +425,7 @@ class LudoGame(Game):
         return None
 
     def _is_check_board_hidden(self, player: Player) -> Visibility:
-        if self.status != "playing":
-            return Visibility.HIDDEN
-        return Visibility.VISIBLE
+        return Visibility.HIDDEN
 
     def _is_move_token_hidden(self, player: Player) -> Visibility:
         if self.status != "playing":
