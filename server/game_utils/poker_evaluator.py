@@ -27,7 +27,14 @@ STRAIGHT_FLUSH = 8
 
 
 def best_hand(cards: list[Card]) -> tuple[tuple[int, tuple[int, ...]], list[Card]]:
-    """Return the best 5-card hand score and the chosen 5 cards."""
+    """Return the best 5-card hand score and chosen 5 cards.
+
+    Args:
+        cards: List of 5+ cards to evaluate.
+
+    Returns:
+        Tuple of (score, best_five_cards).
+    """
     if len(cards) < 5:
         raise ValueError("best_hand requires at least 5 cards")
 
@@ -45,7 +52,14 @@ def best_hand(cards: list[Card]) -> tuple[tuple[int, tuple[int, ...]], list[Card
 
 
 def score_5_cards(cards: list[Card]) -> tuple[int, tuple[int, ...]]:
-    """Score exactly 5 cards. Higher tuples compare as better hands."""
+    """Score exactly 5 cards.
+
+    Args:
+        cards: Exactly five cards.
+
+    Returns:
+        Comparable score tuple (higher is better).
+    """
     if len(cards) != 5:
         raise ValueError("score_5_cards requires exactly 5 cards")
 
@@ -101,7 +115,15 @@ def score_5_cards(cards: list[Card]) -> tuple[int, tuple[int, ...]]:
 
 
 def describe_hand(score: tuple[int, tuple[int, ...]], locale: str = "en") -> str:
-    """Return a human-friendly description for a scored hand."""
+    """Return a human-friendly description for a scored hand.
+
+    Args:
+        score: Hand score tuple.
+        locale: Locale for localization.
+
+    Returns:
+        Localized description of the hand.
+    """
     category, tiebreakers = score
 
     if category == HIGH_CARD:
@@ -172,13 +194,29 @@ def describe_hand(score: tuple[int, tuple[int, ...]], locale: str = "en") -> str
 
 
 def describe_best_hand(cards: list[Card], locale: str = "en") -> tuple[str, list[Card]]:
-    """Return the best hand description and the chosen 5 cards."""
+    """Return the best hand description and the chosen 5 cards.
+
+    Args:
+        cards: List of 5+ cards to evaluate.
+        locale: Locale for localization.
+
+    Returns:
+        Tuple of (description, best_five_cards).
+    """
     score, best = best_hand(cards)
     return describe_hand(score, locale), best
 
 
 def describe_partial_hand(cards: list[Card], locale: str = "en") -> str:
-    """Describe a partial hand without inventing missing cards."""
+    """Describe a partial hand without inventing missing cards.
+
+    Args:
+        cards: List of 0-4 cards.
+        locale: Locale for localization.
+
+    Returns:
+        Localized partial-hand description.
+    """
     if len(cards) >= 5:
         score, _ = best_hand(cards)
         return describe_hand(score, locale)

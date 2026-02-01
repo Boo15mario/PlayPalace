@@ -251,7 +251,18 @@ class Database:
     def create_user(
         self, username: str, password_hash: str, locale: str = "en", trust_level: TrustLevel = TrustLevel.USER, approved: bool = False
     ) -> UserRecord:
-        """Create a new user with a generated UUID."""
+        """Create a new user with a generated UUID.
+
+        Args:
+            username: Username (display name).
+            password_hash: Hashed password.
+            locale: Preferred locale.
+            trust_level: Initial trust level.
+            approved: Whether the account is approved.
+
+        Returns:
+            Created UserRecord.
+        """
         import uuid as uuid_module
         user_uuid = str(uuid_module.uuid4())
         cursor = self._conn.cursor()
@@ -294,7 +305,12 @@ class Database:
         self._conn.commit()
 
     def update_user_password(self, username: str, password_hash: str) -> None:
-        """Update a user's password hash."""
+        """Update a user's password hash.
+
+        Args:
+            username: Username to update.
+            password_hash: New password hash.
+        """
         cursor = self._conn.cursor()
         cursor.execute(
             "UPDATE users SET password_hash = ? WHERE lower(username) = lower(?)",
@@ -347,7 +363,12 @@ class Database:
         return promoted_user
 
     def update_user_trust_level(self, username: str, trust_level: TrustLevel) -> None:
-        """Update a user's trust level."""
+        """Update a user's trust level.
+
+        Args:
+            username: Username to update.
+            trust_level: New trust level.
+        """
         cursor = self._conn.cursor()
         cursor.execute(
             "UPDATE users SET trust_level = ? WHERE lower(username) = lower(?)",
@@ -387,7 +408,11 @@ class Database:
         return users
 
     def get_banned_users(self) -> list[UserRecord]:
-        """Get all banned users."""
+        """Get all banned users.
+
+        Returns:
+            List of banned UserRecords.
+        """
         cursor = self._conn.cursor()
         cursor.execute(
             "SELECT id, username, password_hash, uuid, locale, preferences_json, trust_level, approved FROM users WHERE trust_level = ?",
@@ -408,7 +433,14 @@ class Database:
         return users
 
     def approve_user(self, username: str) -> bool:
-        """Approve a user account. Returns True if user was found and approved."""
+        """Approve a user account.
+
+        Args:
+            username: Username to approve.
+
+        Returns:
+            True if user was found and approved.
+        """
         cursor = self._conn.cursor()
         cursor.execute(
             "UPDATE users SET approved = 1 WHERE lower(username) = lower(?)",
@@ -418,7 +450,14 @@ class Database:
         return cursor.rowcount > 0
 
     def delete_user(self, username: str) -> bool:
-        """Delete a user account. Returns True if user was found and deleted."""
+        """Delete a user account.
+
+        Args:
+            username: Username to delete.
+
+        Returns:
+            True if user was found and deleted.
+        """
         cursor = self._conn.cursor()
         cursor.execute("DELETE FROM users WHERE lower(username) = lower(?)", (username,))
         self._conn.commit()

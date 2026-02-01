@@ -12,7 +12,12 @@ if TYPE_CHECKING:
 
 @dataclass
 class TableMember:
-    """A member of a table (player or spectator)."""
+    """Member of a table (player or spectator).
+
+    Attributes:
+        username: Member username.
+        is_spectator: True if spectating.
+    """
 
     username: str
     is_spectator: bool = False
@@ -20,11 +25,10 @@ class TableMember:
 
 @dataclass
 class Table(DataClassJSONMixin):
-    """
-    A game table that holds members and a game instance.
+    """Game table holding members and a game instance.
 
-    Tables track who is present and forward actions to the game.
-    Role management is handled by games, not tables.
+    Tables track membership and forward events to the game. Role logic
+    (player vs spectator) is handled by the game.
     """
 
     table_id: str
@@ -61,7 +65,13 @@ class Table(DataClassJSONMixin):
     def add_member(
         self, username: str, user: "User", as_spectator: bool = False
     ) -> None:
-        """Add a member to the table."""
+        """Add a member to the table.
+
+        Args:
+            username: Member username.
+            user: User instance.
+            as_spectator: True to join as spectator.
+        """
         # Check if already a member
         for member in self.members:
             if member.username == username:

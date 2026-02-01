@@ -603,7 +603,12 @@ class Server(AdministrationMixin):
                 await self._handle_list_online_with_games(client)
 
     async def _handle_authorize(self, client: ClientConnection, packet: dict) -> None:
-        """Handle authorization packet."""
+        """Authorize a client and attach a NetworkUser if successful.
+
+        Args:
+            client: Client connection.
+            packet: Incoming authorize payload.
+        """
         username_raw = packet.get("username", "")
         password_raw = packet.get("password", "")
         locale = packet.get("locale", "en")
@@ -770,7 +775,12 @@ class Server(AdministrationMixin):
             self._show_main_menu(user)
 
     async def _handle_register(self, client: ClientConnection, packet: dict) -> None:
-        """Handle registration packet from registration dialog."""
+        """Register a new user from the registration dialog.
+
+        Args:
+            client: Client connection.
+            packet: Incoming register payload.
+        """
         username_raw = packet.get("username", "")
         password_raw = packet.get("password", "")
         # email and bio are sent but not stored yet
