@@ -384,6 +384,9 @@ class LudoGame(Game):
             return "action-not-playing"
         if self.current_player != player:
             return "action-not-your-turn"
+        ludo_player: LudoPlayer = player  # type: ignore
+        if ludo_player.move_options:
+            return "action-not-available"
         return None
 
     def _is_roll_dice_hidden(self, player: Player) -> Visibility:
