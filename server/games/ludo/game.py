@@ -77,7 +77,7 @@ class LudoGame(Game):
     track_length: int = 52
     home_column_length: int = 6
     safe_squares: list[int] = field(
-        default_factory=lambda: [1, 9, 14, 22, 27, 35, 40, 48]
+        default_factory=lambda: [9, 22, 35, 48]
     )
 
     @classmethod
@@ -425,7 +425,9 @@ class LudoGame(Game):
         return None
 
     def _is_check_board_hidden(self, player: Player) -> Visibility:
-        return Visibility.HIDDEN
+        if self.status != "playing":
+            return Visibility.HIDDEN
+        return Visibility.VISIBLE
 
     def _is_move_token_hidden(self, player: Player) -> Visibility:
         if self.status != "playing":
